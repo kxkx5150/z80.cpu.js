@@ -10,7 +10,7 @@ class CORE {
     var u8array = new Uint8Array(arybuf);
     this.rom = u8array;
     for (var i = 0; i < u8array.length; i++) {
-      main.mem.mem[0xc000 +i] = u8array[i];
+      main.mem.mem[0x0000 +i] = u8array[i];
     }
     this.init();
   }
@@ -18,7 +18,9 @@ class CORE {
     this.run();
   }
   run(){
-    this.cpu.run_instruction()
+    for (let i = 0; i < 10; i++) {
+      this.cpu.run_instruction(true)      
+    }
   }
 
 

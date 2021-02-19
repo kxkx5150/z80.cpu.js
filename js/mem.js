@@ -4,17 +4,12 @@ class RAM {
     this.mem = new Uint8Array(0xffff);
   }
   read(address) {
-
-
-    console.log(address);
     return this.mem[address];
   }
   read16 = function (address) {
     return (this.read(address + 1) << 8) | this.read(address);
   };
   write(address, data) {
-
-    console.log(address);
     this.mem[address] = data & 0xff;
   }
   write16 = function (address, data) {
