@@ -50,7 +50,7 @@ function Z80(core, mem) {
     this.do_delayed_ei = false;
     this.cycle_counter = 0;
   };
-  this.run_instruction = (info) => {
+  this.run_instruction = () => {
     if (!this.halted) {
       var doing_delayed_di = false,
         doing_delayed_ei = false;
@@ -64,7 +64,7 @@ function Z80(core, mem) {
       r = (r & 0x80) | (((r & 0x7f) + 1) & 0x7f);
       var opcode = this.mem.read(pc);
       this.decode_instruction(opcode);
-      if(info)this.info(pc,opcode)
+      if(this.core.info.cpu)this.showInfo(pc,opcode)
       pc = (pc + 1) & 0xffff;
       if (doing_delayed_di) {
         this.iff1 = 0;
@@ -80,7 +80,7 @@ function Z80(core, mem) {
       return 1;
     }
   };
-  this.info = (pc,opcode)=>{
+  this.showInfo = (pc,opcode)=>{
     let rval = this.Instructions(opcode)
     console.log("");
     console.log("PC      : " + this.toHex(pc));
@@ -89,6 +89,10 @@ function Z80(core, mem) {
   }
   this.toHex = (v) => {
     return '0x' + (('0000' + v.toString(16).toUpperCase()).substr(-4));
+  }
+  this.setPC = (adr) =>{
+    console.log("set PC "+ this.toHex(adr));
+    pc = adr;
   }
   this.interrupt = (non_maskable, data) => {
     if (non_maskable) {
@@ -4324,5 +4328,4 @@ function Z80(core, mem) {
     0,
     0,
   ];
-
 }

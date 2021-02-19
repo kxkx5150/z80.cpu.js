@@ -4,9 +4,13 @@ class CORE {
     this.mem = new RAM(this);
     this.cpu = new Z80(this,this.mem);
     this.rom = null;
-    this.reset();
+    this.info = {
+      cpu:true,
+      mem:true
+    }
   }
   setRom(arybuf){
+    this.reset();
     var u8array = new Uint8Array(arybuf);
     this.rom = u8array;
     for (var i = 0; i < u8array.length; i++) {
@@ -19,7 +23,7 @@ class CORE {
   }
   run(){
     for (let i = 0; i < 10; i++) {
-      this.cpu.run_instruction(true)      
+      this.cpu.run_instruction()      
     }
   }
 
