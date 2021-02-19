@@ -31,9 +31,9 @@ function Z80(core,mem) {
   let do_delayed_di = false;
   let do_delayed_ei = false;
   let cycle_counter = 0;
-  let reset = function () {
+  this.reset = function () {
     sp = 0xdff0;
-    pc = 0x0000;
+    pc = 0xc000;
     a = 0x00;
     r = 0x00;
     set_flags_register(0);
@@ -45,7 +45,7 @@ function Z80(core,mem) {
     do_delayed_ei = false;
     cycle_counter = 0;
   };
-  let run_instruction = function () {
+  this.run_instruction = function () {
     if (!halted) {
       var doing_delayed_di = false,
         doing_delayed_ei = false;
@@ -80,7 +80,7 @@ function Z80(core,mem) {
       halted = false;
       iff2 = iff1;
       iff1 = 0;
-      push_word(pc);
+      this.push_word(pc);
       pc = 0x66;
       cycle_counter += 11;
     } else if (iff1) {
@@ -94,11 +94,11 @@ function Z80(core,mem) {
         pc = (pc + 1) & 0xffff;
         cycle_counter += 2;
       } else if (imode === 1) {
-        push_word(pc);
+        this.push_word(pc);
         pc = 0x38;
         cycle_counter += 13;
       } else if (imode === 2) {
-        push_word(pc);
+        this.push_word(pc);
         var vector_address = (i << 8) | data;
         pc = this.mem.read(vector_address) | (this.mem.read((vector_address + 1) & 0xffff) << 8);
         cycle_counter += 19;
@@ -200,268 +200,7 @@ function Z80(core,mem) {
     flags.Y = (result & 0x20) >>> 5;
     flags.X = (result & 0x08) >>> 3;
   };
-  let get_parity = function (value) {
-    var parity_bits = [
-      1,
-      0,
-      0,
-      1,
-      0,
-      1,
-      1,
-      0,
-      0,
-      1,
-      1,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      1,
-      1,
-      0,
-      1,
-      0,
-      0,
-      1,
-      1,
-      0,
-      0,
-      1,
-      0,
-      1,
-      1,
-      0,
-      0,
-      1,
-      1,
-      0,
-      1,
-      0,
-      0,
-      1,
-      1,
-      0,
-      0,
-      1,
-      0,
-      1,
-      1,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      1,
-      1,
-      0,
-      0,
-      1,
-      1,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      1,
-      1,
-      0,
-      1,
-      0,
-      0,
-      1,
-      1,
-      0,
-      0,
-      1,
-      0,
-      1,
-      1,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      1,
-      1,
-      0,
-      0,
-      1,
-      1,
-      0,
-      1,
-      0,
-      0,
-      1,
-      1,
-      0,
-      0,
-      1,
-      0,
-      1,
-      1,
-      0,
-      0,
-      1,
-      1,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      1,
-      1,
-      0,
-      1,
-      0,
-      0,
-      1,
-      1,
-      0,
-      0,
-      1,
-      0,
-      1,
-      1,
-      0,
-      0,
-      1,
-      1,
-      0,
-      1,
-      0,
-      0,
-      1,
-      1,
-      0,
-      0,
-      1,
-      0,
-      1,
-      1,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      1,
-      1,
-      0,
-      0,
-      1,
-      1,
-      0,
-      1,
-      0,
-      0,
-      1,
-      1,
-      0,
-      0,
-      1,
-      0,
-      1,
-      1,
-      0,
-      0,
-      1,
-      1,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      1,
-      1,
-      0,
-      1,
-      0,
-      0,
-      1,
-      1,
-      0,
-      0,
-      1,
-      0,
-      1,
-      1,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      1,
-      1,
-      0,
-      0,
-      1,
-      1,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      1,
-      1,
-      0,
-      1,
-      0,
-      0,
-      1,
-      1,
-      0,
-      0,
-      1,
-      0,
-      1,
-      1,
-      0,
-      0,
-      1,
-      1,
-      0,
-      1,
-      0,
-      0,
-      1,
-      1,
-      0,
-      0,
-      1,
-      0,
-      1,
-      1,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      1,
-      1,
-      0,
-      0,
-      1,
-      1,
-      0,
-      1,
-      0,
-      0,
-      1,
-    ];
-    return parity_bits[value];
-  };
-  let push_word = function (operand) {
+  this.push_word = function (operand) {
     sp = (sp - 1) & 0xffff;
     this.mem.write(sp, (operand & 0xff00) >>> 8);
     sp = (sp - 1) & 0xffff;
@@ -494,7 +233,7 @@ function Z80(core,mem) {
   let do_conditional_call = function (condition) {
     if (condition) {
       cycle_counter += 7;
-      push_word((pc + 3) & 0xffff);
+      this.push_word((pc + 3) & 0xffff);
       pc = this.mem.read((pc + 1) & 0xffff) | (this.mem.read((pc + 2) & 0xffff) << 8);
       pc = (pc - 1) & 0xffff;
     } else {
@@ -507,8 +246,8 @@ function Z80(core,mem) {
       pc = (pop_word() - 1) & 0xffff;
     }
   };
-  let do_reset = function (address) {
-    push_word((pc + 1) & 0xffff);
+  this.do_reset = function (address) {
+    this.push_word((pc + 1) & 0xffff);
     pc = (address - 1) & 0xffff;
   };
   let do_add = function (operand) {
@@ -1190,14 +929,14 @@ function Z80(core,mem) {
     do_conditional_call(!flags.Z);
   };
   instructions[0xc5] = function () {
-    push_word(c | (b << 8));
+    this.push_word(c | (b << 8));
   };
   instructions[0xc6] = function () {
     pc = (pc + 1) & 0xffff;
     do_add(this.mem.read(pc));
   };
   instructions[0xc7] = function () {
-    do_reset(0x00);
+    this.do_reset(0x00);
   };
   instructions[0xc8] = function () {
     do_conditional_return(!!flags.Z);
@@ -1267,7 +1006,7 @@ function Z80(core,mem) {
     do_conditional_call(!!flags.Z);
   };
   instructions[0xcd] = function () {
-    push_word((pc + 3) & 0xffff);
+    this.push_word((pc + 3) & 0xffff);
     pc = this.mem.read((pc + 1) & 0xffff) | (this.mem.read((pc + 2) & 0xffff) << 8);
     pc = (pc - 1) & 0xffff;
   };
@@ -1276,7 +1015,7 @@ function Z80(core,mem) {
     do_adc(this.mem.read(pc));
   };
   instructions[0xcf] = function () {
-    do_reset(0x08);
+    this.do_reset(0x08);
   };
   instructions[0xd0] = function () {
     do_conditional_return(!flags.C);
@@ -1297,14 +1036,14 @@ function Z80(core,mem) {
     do_conditional_call(!flags.C);
   };
   instructions[0xd5] = function () {
-    push_word(e | (d << 8));
+    this.push_word(e | (d << 8));
   };
   instructions[0xd6] = function () {
     pc = (pc + 1) & 0xffff;
     do_sub(this.mem.read(pc));
   };
   instructions[0xd7] = function () {
-    do_reset(0x10);
+    this.do_reset(0x10);
   };
   instructions[0xd8] = function () {
     do_conditional_return(!!flags.C);
@@ -1357,7 +1096,7 @@ function Z80(core,mem) {
     do_sbc(this.mem.read(pc));
   };
   instructions[0xdf] = function () {
-    do_reset(0x18);
+    this.do_reset(0x18);
   };
   instructions[0xe0] = function () {
     do_conditional_return(!flags.P);
@@ -1382,14 +1121,14 @@ function Z80(core,mem) {
     do_conditional_call(!flags.P);
   };
   instructions[0xe5] = function () {
-    push_word(l | (h << 8));
+    this.push_word(l | (h << 8));
   };
   instructions[0xe6] = function () {
     pc = (pc + 1) & 0xffff;
     do_and(this.mem.read(pc));
   };
   instructions[0xe7] = function () {
-    do_reset(0x20);
+    this.do_reset(0x20);
   };
   instructions[0xe8] = function () {
     do_conditional_return(!!flags.P);
@@ -1429,7 +1168,7 @@ function Z80(core,mem) {
     do_xor(this.mem.read(pc));
   };
   instructions[0xef] = function () {
-    do_reset(0x28);
+    this.do_reset(0x28);
   };
   instructions[0xf0] = function () {
     do_conditional_return(!flags.S);
@@ -1449,14 +1188,14 @@ function Z80(core,mem) {
     do_conditional_call(!flags.S);
   };
   instructions[0xf5] = function () {
-    push_word(get_flags_register() | (a << 8));
+    this.push_word(get_flags_register() | (a << 8));
   };
   instructions[0xf6] = function () {
     pc = (pc + 1) & 0xffff;
     do_or(this.mem.read(pc));
   };
   instructions[0xf7] = function () {
-    do_reset(0x30);
+    this.do_reset(0x30);
   };
   instructions[0xf8] = function () {
     do_conditional_return(!!flags.S);
@@ -1495,7 +1234,7 @@ function Z80(core,mem) {
     do_cp(this.mem.read(pc));
   };
   instructions[0xff] = function () {
-    do_reset(0x38);
+    this.do_reset(0x38);
   };
   let ed_instructions = [];
   ed_instructions[0x40] = function () {
@@ -2199,13 +1938,274 @@ function Z80(core,mem) {
     this.mem.write((sp + 1) & 0xffff, (temp >>> 8) & 0xff);
   };
   dd_instructions[0xe5] = function () {
-    push_word(ix);
+    this.push_word(ix);
   };
   dd_instructions[0xe9] = function () {
     pc = (ix - 1) & 0xffff;
   };
   dd_instructions[0xf9] = function () {
     sp = ix;
+  };
+  let get_parity = function (value) {
+    var parity_bits = [
+      1,
+      0,
+      0,
+      1,
+      0,
+      1,
+      1,
+      0,
+      0,
+      1,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      1,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+      1,
+      0,
+      0,
+      1,
+      0,
+      1,
+      1,
+      0,
+      0,
+      1,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+      1,
+      0,
+      0,
+      1,
+      0,
+      1,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      1,
+      1,
+      0,
+      0,
+      1,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      1,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+      1,
+      0,
+      0,
+      1,
+      0,
+      1,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      1,
+      1,
+      0,
+      0,
+      1,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+      1,
+      0,
+      0,
+      1,
+      0,
+      1,
+      1,
+      0,
+      0,
+      1,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      1,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+      1,
+      0,
+      0,
+      1,
+      0,
+      1,
+      1,
+      0,
+      0,
+      1,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+      1,
+      0,
+      0,
+      1,
+      0,
+      1,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      1,
+      1,
+      0,
+      0,
+      1,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+      1,
+      0,
+      0,
+      1,
+      0,
+      1,
+      1,
+      0,
+      0,
+      1,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      1,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+      1,
+      0,
+      0,
+      1,
+      0,
+      1,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      1,
+      1,
+      0,
+      0,
+      1,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      1,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+      1,
+      0,
+      0,
+      1,
+      0,
+      1,
+      1,
+      0,
+      0,
+      1,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+      1,
+      0,
+      0,
+      1,
+      0,
+      1,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      1,
+      1,
+      0,
+      0,
+      1,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+    ];
+    return parity_bits[value];
   };
   let cycle_counts = [
     4,
