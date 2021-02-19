@@ -1,4 +1,4 @@
-function Z80(core,mem) {
+function Z80(core, mem) {
   this.core = core;
   this.mem = mem;
 
@@ -9,104 +9,109 @@ function Z80(core,mem) {
   let e = 0x00;
   let h = 0x00;
   let l = 0x00;
-  let a_prime = 0x00;
-  let b_prime = 0x00;
-  let c_prime = 0x00;
-  let d_prime = 0x00;
-  let e_prime = 0x00;
-  let h_prime = 0x00;
-  let l_prime = 0x00;
+
   let ix = 0x0000;
   let iy = 0x0000;
   let i = 0x00;
   let r = 0x00;
   let sp = 0xdff0;
   let pc = 0x0000;
-  let flags = { S: 0, Z: 0, Y: 0, H: 0, X: 0, P: 0, N: 0, C: 0 };
-  let flags_prime = { S: 0, Z: 0, Y: 0, H: 0, X: 0, P: 0, N: 0, C: 0 };
-  let imode = 0;
-  let iff1 = 0;
-  let iff2 = 0;
-  let halted = false;
-  let do_delayed_di = false;
-  let do_delayed_ei = false;
-  let cycle_counter = 0;
-  this.reset = function () {
+
+  this.a_prime = 0x00;
+  this.b_prime = 0x00;
+  this.c_prime = 0x00;
+  this.d_prime = 0x00;
+  this.e_prime = 0x00;
+  this.h_prime = 0x00;
+  this.l_prime = 0x00;
+
+  this.imode = 0;
+  this.iff1 = 0;
+  this.iff2 = 0;
+  this.halted = false;
+  this.do_delayed_di = false;
+  this.do_delayed_ei = false;
+
+  this.cycle_counter = 0;
+  this.flg = { S: 0, Z: 0, Y: 0, H: 0, X: 0, P: 0, N: 0, C: 0 };
+  this.flgp = { S: 0, Z: 0, Y: 0, H: 0, X: 0, P: 0, N: 0, C: 0 };
+
+  this.reset = () => {
     sp = 0xdff0;
     pc = 0xc000;
     a = 0x00;
     r = 0x00;
-    set_flags_register(0);
-    imode = 0;
-    iff1 = 0;
-    iff2 = 0;
-    halted = false;
-    do_delayed_di = false;
-    do_delayed_ei = false;
-    cycle_counter = 0;
+    this.set_flags_register(0);
+    this.imode = 0;
+    this.iff1 = 0;
+    this.iff2 = 0;
+    this.halted = false;
+    this.do_delayed_di = false;
+    this.do_delayed_ei = false;
+    this.cycle_counter = 0;
   };
-  this.run_instruction = function () {
-    if (!halted) {
+  this.run_instruction = () => {
+    if (!this.halted) {
       var doing_delayed_di = false,
         doing_delayed_ei = false;
-      if (do_delayed_di) {
-        do_delayed_di = false;
+      if (this.do_delayed_di) {
+        this.do_delayed_di = false;
         doing_delayed_di = true;
-      } else if (do_delayed_ei) {
-        do_delayed_ei = false;
+      } else if (this.do_delayed_ei) {
+        this.do_delayed_ei = false;
         doing_delayed_ei = true;
       }
       r = (r & 0x80) | (((r & 0x7f) + 1) & 0x7f);
       var opcode = this.mem.read(pc);
-      decode_instruction(opcode);
+      this.decode_instruction(opcode);
       pc = (pc + 1) & 0xffff;
       if (doing_delayed_di) {
-        iff1 = 0;
-        iff2 = 0;
+        this.iff1 = 0;
+        this.iff2 = 0;
       } else if (doing_delayed_ei) {
-        iff1 = 1;
-        iff2 = 1;
+        this.iff1 = 1;
+        this.iff2 = 1;
       }
-      var retval = cycle_counter;
-      cycle_counter = 0;
+      var retval = this.cycle_counter;
+      this.cycle_counter = 0;
       return retval;
     } else {
       return 1;
     }
   };
-  let interrupt = function (non_maskable, data) {
+  this.interrupt = (non_maskable, data) => {
     if (non_maskable) {
       r = (r & 0x80) | (((r & 0x7f) + 1) & 0x7f);
-      halted = false;
-      iff2 = iff1;
-      iff1 = 0;
+      this.halted = false;
+      this.iff2 = this.iff1;
+      this.iff1 = 0;
       this.push_word(pc);
       pc = 0x66;
-      cycle_counter += 11;
-    } else if (iff1) {
+      this.cycle_counter += 11;
+    } else if (this.iff1) {
       r = (r & 0x80) | (((r & 0x7f) + 1) & 0x7f);
-      halted = false;
-      iff1 = 0;
-      iff2 = 0;
-      if (imode === 0) {
+      this.halted = false;
+      this.iff1 = 0;
+      this.iff2 = 0;
+      if (this.imode === 0) {
         pc = (pc - 1) & 0xffff;
-        decode_instruction(data);
+        this.decode_instruction(data);
         pc = (pc + 1) & 0xffff;
-        cycle_counter += 2;
-      } else if (imode === 1) {
+        this.cycle_counter += 2;
+      } else if (this.imode === 1) {
         this.push_word(pc);
         pc = 0x38;
-        cycle_counter += 13;
-      } else if (imode === 2) {
+        this.cycle_counter += 13;
+      } else if (this.imode === 2) {
         this.push_word(pc);
         var vector_address = (i << 8) | data;
         pc = this.mem.read(vector_address) | (this.mem.read((vector_address + 1) & 0xffff) << 8);
-        cycle_counter += 19;
+        this.cycle_counter += 19;
       }
     }
   };
-  let decode_instruction = function (opcode) {
-    var get_operand = function (opcode) {
+  this.decode_instruction = (opcode) => {
+    var get_operand = (opcode) => {
       return (opcode & 0x07) === 0
         ? b
         : (opcode & 0x07) === 1
@@ -124,7 +129,7 @@ function Z80(core,mem) {
         : a;
     };
     if (opcode === 0x76) {
-      halted = true;
+      this.halted = true;
     } else if (opcode >= 0x40 && opcode < 0x80) {
       var operand = get_operand(opcode);
       if ((opcode & 0x38) >>> 3 === 0) b = operand;
@@ -137,83 +142,92 @@ function Z80(core,mem) {
       else if ((opcode & 0x38) >>> 3 === 7) a = operand;
     } else if (opcode >= 0x80 && opcode < 0xc0) {
       var operand = get_operand(opcode),
-        op_array = [do_add, do_adc, do_sub, do_sbc, do_and, do_xor, do_or, do_cp];
+        op_array = [
+          this.do_add,
+          this.do_adc,
+          this.do_sub,
+          this.do_sbc,
+          this.do_and,
+          this.do_xor,
+          this.do_or,
+          this.do_cp,
+        ];
       op_array[(opcode & 0x38) >>> 3](operand);
     } else {
-      var func = instructions[opcode];
-      func();
+      this.instructions(opcode);
     }
-    cycle_counter += cycle_counts[opcode];
+    this.cycle_counter += this.cycle_counts[opcode];
   };
-  let get_signed_offset_byte = function (value) {
+  
+  this.get_signed_offset_byte = (value) => {
     value &= 0xff;
     if (value & 0x80) {
       value = -((0xff & ~value) + 1);
     }
     return value;
   };
-  let get_flags_register = function () {
+  this.get_flags_register = () => {
     return (
-      (flags.S << 7) |
-      (flags.Z << 6) |
-      (flags.Y << 5) |
-      (flags.H << 4) |
-      (flags.X << 3) |
-      (flags.P << 2) |
-      (flags.N << 1) |
-      flags.C
+      (this.flg.S << 7) |
+      (this.flg.Z << 6) |
+      (this.flg.Y << 5) |
+      (this.flg.H << 4) |
+      (this.flg.X << 3) |
+      (this.flg.P << 2) |
+      (this.flg.N << 1) |
+      this.flg.C
     );
   };
-  let get_flags_prime = function () {
+  this.get_flags_prime = () => {
     return (
-      (flags_prime.S << 7) |
-      (flags_prime.Z << 6) |
-      (flags_prime.Y << 5) |
-      (flags_prime.H << 4) |
-      (flags_prime.X << 3) |
-      (flags_prime.P << 2) |
-      (flags_prime.N << 1) |
-      flags_prime.C
+      (this.flgp.S << 7) |
+      (this.flgp.Z << 6) |
+      (this.flgp.Y << 5) |
+      (this.flgp.H << 4) |
+      (this.flgp.X << 3) |
+      (this.flgp.P << 2) |
+      (this.flgp.N << 1) |
+      this.flgp.C
     );
   };
-  let set_flags_register = function (operand) {
-    flags.S = (operand & 0x80) >>> 7;
-    flags.Z = (operand & 0x40) >>> 6;
-    flags.Y = (operand & 0x20) >>> 5;
-    flags.H = (operand & 0x10) >>> 4;
-    flags.X = (operand & 0x08) >>> 3;
-    flags.P = (operand & 0x04) >>> 2;
-    flags.N = (operand & 0x02) >>> 1;
-    flags.C = operand & 0x01;
+  this.set_flags_register = (operand) => {
+    this.flg.S = (operand & 0x80) >>> 7;
+    this.flg.Z = (operand & 0x40) >>> 6;
+    this.flg.Y = (operand & 0x20) >>> 5;
+    this.flg.H = (operand & 0x10) >>> 4;
+    this.flg.X = (operand & 0x08) >>> 3;
+    this.flg.P = (operand & 0x04) >>> 2;
+    this.flg.N = (operand & 0x02) >>> 1;
+    this.flg.C = operand & 0x01;
   };
-  let set_flags_prime = function (operand) {
-    flags_prime.S = (operand & 0x80) >>> 7;
-    flags_prime.Z = (operand & 0x40) >>> 6;
-    flags_prime.Y = (operand & 0x20) >>> 5;
-    flags_prime.H = (operand & 0x10) >>> 4;
-    flags_prime.X = (operand & 0x08) >>> 3;
-    flags_prime.P = (operand & 0x04) >>> 2;
-    flags_prime.N = (operand & 0x02) >>> 1;
-    flags_prime.C = operand & 0x01;
+  this.set_flags_prime = (operand) => {
+    this.flgp.S = (operand & 0x80) >>> 7;
+    this.flgp.Z = (operand & 0x40) >>> 6;
+    this.flgp.Y = (operand & 0x20) >>> 5;
+    this.flgp.H = (operand & 0x10) >>> 4;
+    this.flgp.X = (operand & 0x08) >>> 3;
+    this.flgp.P = (operand & 0x04) >>> 2;
+    this.flgp.N = (operand & 0x02) >>> 1;
+    this.flgp.C = operand & 0x01;
   };
-  let update_xy_flags = function (result) {
-    flags.Y = (result & 0x20) >>> 5;
-    flags.X = (result & 0x08) >>> 3;
+  this.update_xy_flags = (result) => {
+    this.flg.Y = (result & 0x20) >>> 5;
+    this.flg.X = (result & 0x08) >>> 3;
   };
-  this.push_word = function (operand) {
+  this.push_word = (operand) => {
     sp = (sp - 1) & 0xffff;
     this.mem.write(sp, (operand & 0xff00) >>> 8);
     sp = (sp - 1) & 0xffff;
     this.mem.write(sp, operand & 0x00ff);
   };
-  let pop_word = function () {
+  this.pop_word = () => {
     var retval = this.mem.read(sp) & 0xff;
     sp = (sp + 1) & 0xffff;
     retval |= this.mem.read(sp) << 8;
     sp = (sp + 1) & 0xffff;
     return retval;
   };
-  let do_conditional_absolute_jump = function (condition) {
+  this.do_conditional_absolute_jump = (condition) => {
     if (condition) {
       pc = this.mem.read((pc + 1) & 0xffff) | (this.mem.read((pc + 2) & 0xffff) << 8);
       pc = (pc - 1) & 0xffff;
@@ -221,18 +235,18 @@ function Z80(core,mem) {
       pc = (pc + 2) & 0xffff;
     }
   };
-  let do_conditional_relative_jump = function (condition) {
+  this.do_conditional_relative_jump = (condition) => {
     if (condition) {
-      cycle_counter += 5;
-      var offset = get_signed_offset_byte(this.mem.read((pc + 1) & 0xffff));
+      this.cycle_counter += 5;
+      var offset = this.get_signed_offset_byte(this.mem.read((pc + 1) & 0xffff));
       pc = (pc + offset + 1) & 0xffff;
     } else {
       pc = (pc + 1) & 0xffff;
     }
   };
-  let do_conditional_call = function (condition) {
+  this.do_conditional_call = (condition) => {
     if (condition) {
-      cycle_counter += 7;
+      this.cycle_counter += 7;
       this.push_word((pc + 3) & 0xffff);
       pc = this.mem.read((pc + 1) & 0xffff) | (this.mem.read((pc + 2) & 0xffff) << 8);
       pc = (pc - 1) & 0xffff;
@@ -240,180 +254,180 @@ function Z80(core,mem) {
       pc = (pc + 2) & 0xffff;
     }
   };
-  let do_conditional_return = function (condition) {
+  this.do_conditional_return = (condition) => {
     if (condition) {
-      cycle_counter += 6;
-      pc = (pop_word() - 1) & 0xffff;
+      this.cycle_counter += 6;
+      pc = (this.pop_word() - 1) & 0xffff;
     }
   };
-  this.do_reset = function (address) {
+  this.do_reset = (address) => {
     this.push_word((pc + 1) & 0xffff);
     pc = (address - 1) & 0xffff;
   };
-  let do_add = function (operand) {
+  this.do_add = (operand) => {
     var result = a + operand;
-    flags.S = result & 0x80 ? 1 : 0;
-    flags.Z = !(result & 0xff) ? 1 : 0;
-    flags.H = ((operand & 0x0f) + (a & 0x0f)) & 0x10 ? 1 : 0;
-    flags.P = (a & 0x80) === (operand & 0x80) && (a & 0x80) !== (result & 0x80) ? 1 : 0;
-    flags.N = 0;
-    flags.C = result & 0x100 ? 1 : 0;
+    this.flg.S = result & 0x80 ? 1 : 0;
+    this.flg.Z = !(result & 0xff) ? 1 : 0;
+    this.flg.H = ((operand & 0x0f) + (a & 0x0f)) & 0x10 ? 1 : 0;
+    this.flg.P = (a & 0x80) === (operand & 0x80) && (a & 0x80) !== (result & 0x80) ? 1 : 0;
+    this.flg.N = 0;
+    this.flg.C = result & 0x100 ? 1 : 0;
     a = result & 0xff;
-    update_xy_flags(a);
+    this.update_xy_flags(a);
   };
-  let do_adc = function (operand) {
-    var result = a + operand + flags.C;
-    flags.S = result & 0x80 ? 1 : 0;
-    flags.Z = !(result & 0xff) ? 1 : 0;
-    flags.H = ((operand & 0x0f) + (a & 0x0f) + flags.C) & 0x10 ? 1 : 0;
-    flags.P = (a & 0x80) === (operand & 0x80) && (a & 0x80) !== (result & 0x80) ? 1 : 0;
-    flags.N = 0;
-    flags.C = result & 0x100 ? 1 : 0;
+  this.do_adc = (operand) => {
+    var result = a + operand + this.flg.C;
+    this.flg.S = result & 0x80 ? 1 : 0;
+    this.flg.Z = !(result & 0xff) ? 1 : 0;
+    this.flg.H = ((operand & 0x0f) + (a & 0x0f) + this.flg.C) & 0x10 ? 1 : 0;
+    this.flg.P = (a & 0x80) === (operand & 0x80) && (a & 0x80) !== (result & 0x80) ? 1 : 0;
+    this.flg.N = 0;
+    this.flg.C = result & 0x100 ? 1 : 0;
     a = result & 0xff;
-    update_xy_flags(a);
+    this.update_xy_flags(a);
   };
-  let do_sub = function (operand) {
+  this.do_sub = (operand) => {
     var result = a - operand;
-    flags.S = result & 0x80 ? 1 : 0;
-    flags.Z = !(result & 0xff) ? 1 : 0;
-    flags.H = ((a & 0x0f) - (operand & 0x0f)) & 0x10 ? 1 : 0;
-    flags.P = (a & 0x80) !== (operand & 0x80) && (a & 0x80) !== (result & 0x80) ? 1 : 0;
-    flags.N = 1;
-    flags.C = result & 0x100 ? 1 : 0;
+    this.flg.S = result & 0x80 ? 1 : 0;
+    this.flg.Z = !(result & 0xff) ? 1 : 0;
+    this.flg.H = ((a & 0x0f) - (operand & 0x0f)) & 0x10 ? 1 : 0;
+    this.flg.P = (a & 0x80) !== (operand & 0x80) && (a & 0x80) !== (result & 0x80) ? 1 : 0;
+    this.flg.N = 1;
+    this.flg.C = result & 0x100 ? 1 : 0;
     a = result & 0xff;
-    update_xy_flags(a);
+    this.update_xy_flags(a);
   };
-  let do_sbc = function (operand) {
-    var result = a - operand - flags.C;
-    flags.S = result & 0x80 ? 1 : 0;
-    flags.Z = !(result & 0xff) ? 1 : 0;
-    flags.H = ((a & 0x0f) - (operand & 0x0f) - flags.C) & 0x10 ? 1 : 0;
-    flags.P = (a & 0x80) !== (operand & 0x80) && (a & 0x80) !== (result & 0x80) ? 1 : 0;
-    flags.N = 1;
-    flags.C = result & 0x100 ? 1 : 0;
+  this.do_sbc = (operand) => {
+    var result = a - operand - this.flg.C;
+    this.flg.S = result & 0x80 ? 1 : 0;
+    this.flg.Z = !(result & 0xff) ? 1 : 0;
+    this.flg.H = ((a & 0x0f) - (operand & 0x0f) - this.flg.C) & 0x10 ? 1 : 0;
+    this.flg.P = (a & 0x80) !== (operand & 0x80) && (a & 0x80) !== (result & 0x80) ? 1 : 0;
+    this.flg.N = 1;
+    this.flg.C = result & 0x100 ? 1 : 0;
     a = result & 0xff;
-    update_xy_flags(a);
+    this.update_xy_flags(a);
   };
-  let do_cp = function (operand) {
+  this.do_cp = (operand) => {
     var temp = a;
-    do_sub(operand);
+    this.do_sub(operand);
     a = temp;
-    update_xy_flags(operand);
+    this.update_xy_flags(operand);
   };
-  let do_and = function (operand) {
+  this.do_and = (operand) => {
     a &= operand & 0xff;
-    flags.S = a & 0x80 ? 1 : 0;
-    flags.Z = !a ? 1 : 0;
-    flags.H = 1;
-    flags.P = get_parity(a);
-    flags.N = 0;
-    flags.C = 0;
-    update_xy_flags(a);
+    this.flg.S = a & 0x80 ? 1 : 0;
+    this.flg.Z = !a ? 1 : 0;
+    this.flg.H = 1;
+    this.flg.P = this.parity_bits[a];
+    this.flg.N = 0;
+    this.flg.C = 0;
+    this.update_xy_flags(a);
   };
-  let do_or = function (operand) {
+  this.do_or = (operand) => {
     a = (operand | a) & 0xff;
-    flags.S = a & 0x80 ? 1 : 0;
-    flags.Z = !a ? 1 : 0;
-    flags.H = 0;
-    flags.P = get_parity(a);
-    flags.N = 0;
-    flags.C = 0;
-    update_xy_flags(a);
+    this.flg.S = a & 0x80 ? 1 : 0;
+    this.flg.Z = !a ? 1 : 0;
+    this.flg.H = 0;
+    this.flg.P = this.parity_bits[a];
+    this.flg.N = 0;
+    this.flg.C = 0;
+    this.update_xy_flags(a);
   };
-  let do_xor = function (operand) {
+  this.do_xor = (operand) => {
     a = (operand ^ a) & 0xff;
-    flags.S = a & 0x80 ? 1 : 0;
-    flags.Z = !a ? 1 : 0;
-    flags.H = 0;
-    flags.P = get_parity(a);
-    flags.N = 0;
-    flags.C = 0;
-    update_xy_flags(a);
+    this.flg.S = a & 0x80 ? 1 : 0;
+    this.flg.Z = !a ? 1 : 0;
+    this.flg.H = 0;
+    this.flg.P = this.parity_bits[a];
+    this.flg.N = 0;
+    this.flg.C = 0;
+    this.update_xy_flags(a);
   };
-  let do_inc = function (operand) {
+  this.do_inc = (operand) => {
     var result = operand + 1;
-    flags.S = result & 0x80 ? 1 : 0;
-    flags.Z = !(result & 0xff) ? 1 : 0;
-    flags.H = (operand & 0x0f) === 0x0f ? 1 : 0;
-    flags.P = operand === 0x7f ? 1 : 0;
-    flags.N = 0;
+    this.flg.S = result & 0x80 ? 1 : 0;
+    this.flg.Z = !(result & 0xff) ? 1 : 0;
+    this.flg.H = (operand & 0x0f) === 0x0f ? 1 : 0;
+    this.flg.P = operand === 0x7f ? 1 : 0;
+    this.flg.N = 0;
     result &= 0xff;
-    update_xy_flags(result);
+    this.update_xy_flags(result);
     return result;
   };
-  let do_dec = function (operand) {
+  this.do_dec = (operand) => {
     var result = operand - 1;
-    flags.S = result & 0x80 ? 1 : 0;
-    flags.Z = !(result & 0xff) ? 1 : 0;
-    flags.H = (operand & 0x0f) === 0x00 ? 1 : 0;
-    flags.P = operand === 0x80 ? 1 : 0;
-    flags.N = 1;
+    this.flg.S = result & 0x80 ? 1 : 0;
+    this.flg.Z = !(result & 0xff) ? 1 : 0;
+    this.flg.H = (operand & 0x0f) === 0x00 ? 1 : 0;
+    this.flg.P = operand === 0x80 ? 1 : 0;
+    this.flg.N = 1;
     result &= 0xff;
-    update_xy_flags(result);
+    this.update_xy_flags(result);
     return result;
   };
-  let do_hl_add = function (operand) {
+  this.do_hl_add = (operand) => {
     var hl = l | (h << 8),
       result = hl + operand;
-    flags.N = 0;
-    flags.C = result & 0x10000 ? 1 : 0;
-    flags.H = ((hl & 0x0fff) + (operand & 0x0fff)) & 0x1000 ? 1 : 0;
+    this.flg.N = 0;
+    this.flg.C = result & 0x10000 ? 1 : 0;
+    this.flg.H = ((hl & 0x0fff) + (operand & 0x0fff)) & 0x1000 ? 1 : 0;
     l = result & 0xff;
     h = (result & 0xff00) >>> 8;
-    update_xy_flags(h);
+    this.update_xy_flags(h);
   };
-  let do_hl_adc = function (operand) {
-    operand += flags.C;
+  this.do_hl_adc = (operand) => {
+    operand += this.flg.C;
     var hl = l | (h << 8),
       result = hl + operand;
-    flags.S = result & 0x8000 ? 1 : 0;
-    flags.Z = !(result & 0xffff) ? 1 : 0;
-    flags.H = ((hl & 0x0fff) + (operand & 0x0fff)) & 0x1000 ? 1 : 0;
-    flags.P = (hl & 0x8000) === (operand & 0x8000) && (result & 0x8000) !== (hl & 0x8000) ? 1 : 0;
-    flags.N = 0;
-    flags.C = result & 0x10000 ? 1 : 0;
+    this.flg.S = result & 0x8000 ? 1 : 0;
+    this.flg.Z = !(result & 0xffff) ? 1 : 0;
+    this.flg.H = ((hl & 0x0fff) + (operand & 0x0fff)) & 0x1000 ? 1 : 0;
+    this.flg.P = (hl & 0x8000) === (operand & 0x8000) && (result & 0x8000) !== (hl & 0x8000) ? 1 : 0;
+    this.flg.N = 0;
+    this.flg.C = result & 0x10000 ? 1 : 0;
     l = result & 0xff;
     h = (result >>> 8) & 0xff;
-    update_xy_flags(h);
+    this.update_xy_flags(h);
   };
-  let do_hl_sbc = function (operand) {
-    operand += flags.C;
+  this.do_hl_sbc = (operand) => {
+    operand += this.flg.C;
     var hl = l | (h << 8),
       result = hl - operand;
-    flags.S = result & 0x8000 ? 1 : 0;
-    flags.Z = !(result & 0xffff) ? 1 : 0;
-    flags.H = ((hl & 0x0fff) - (operand & 0x0fff)) & 0x1000 ? 1 : 0;
-    flags.P = (hl & 0x8000) !== (operand & 0x8000) && (result & 0x8000) !== (hl & 0x8000) ? 1 : 0;
-    flags.N = 1;
-    flags.C = result & 0x10000 ? 1 : 0;
+    this.flg.S = result & 0x8000 ? 1 : 0;
+    this.flg.Z = !(result & 0xffff) ? 1 : 0;
+    this.flg.H = ((hl & 0x0fff) - (operand & 0x0fff)) & 0x1000 ? 1 : 0;
+    this.flg.P = (hl & 0x8000) !== (operand & 0x8000) && (result & 0x8000) !== (hl & 0x8000) ? 1 : 0;
+    this.flg.N = 1;
+    this.flg.C = result & 0x10000 ? 1 : 0;
     l = result & 0xff;
     h = (result >>> 8) & 0xff;
-    update_xy_flags(h);
+    this.update_xy_flags(h);
   };
-  let do_in = function (port) {
+  this.do_in = (port) => {
     var result = this.core.io.read(port);
-    flags.S = result & 0x80 ? 1 : 0;
-    flags.Z = result ? 0 : 1;
-    flags.H = 0;
-    flags.P = get_parity(result) ? 1 : 0;
-    flags.N = 0;
-    update_xy_flags(result);
+    this.flg.S = result & 0x80 ? 1 : 0;
+    this.flg.Z = result ? 0 : 1;
+    this.flg.H = 0;
+    this.flg.P = this.parity_bits[result] ? 1 : 0;
+    this.flg.N = 0;
+    this.update_xy_flags(result);
     return result;
   };
-  let do_neg = function () {
+  this.do_neg = () => {
     if (a !== 0x80) {
-      a = get_signed_offset_byte(a);
+      a = this.get_signed_offset_byte(a);
       a = -a & 0xff;
     }
-    flags.S = a & 0x80 ? 1 : 0;
-    flags.Z = !a ? 1 : 0;
-    flags.H = (-a & 0x0f) > 0 ? 1 : 0;
-    flags.P = a === 0x80 ? 1 : 0;
-    flags.N = 1;
-    flags.C = a ? 1 : 0;
-    update_xy_flags(a);
+    this.flg.S = a & 0x80 ? 1 : 0;
+    this.flg.Z = !a ? 1 : 0;
+    this.flg.H = (-a & 0x0f) > 0 ? 1 : 0;
+    this.flg.P = a === 0x80 ? 1 : 0;
+    this.flg.N = 1;
+    this.flg.C = a ? 1 : 0;
+    this.update_xy_flags(a);
   };
-  let do_ldi = function () {
+  this.do_ldi = () => {
     var read_value = this.mem.read(l | (h << 8));
     this.mem.write(e | (d << 8), read_value);
     var result = (e | (d << 8)) + 1;
@@ -425,46 +439,46 @@ function Z80(core,mem) {
     result = (c | (b << 8)) - 1;
     c = result & 0xff;
     b = (result & 0xff00) >>> 8;
-    flags.H = 0;
-    flags.P = c || b ? 1 : 0;
-    flags.N = 0;
-    flags.Y = ((a + read_value) & 0x02) >>> 1;
-    flags.X = ((a + read_value) & 0x08) >>> 3;
+    this.flg.H = 0;
+    this.flg.P = c || b ? 1 : 0;
+    this.flg.N = 0;
+    this.flg.Y = ((a + read_value) & 0x02) >>> 1;
+    this.flg.X = ((a + read_value) & 0x08) >>> 3;
   };
-  let do_cpi = function () {
-    var temp_carry = flags.C;
+  this.do_cpi = () => {
+    var temp_carry = this.flg.C;
     var read_value = this.mem.read(l | (h << 8));
-    do_cp(read_value);
-    flags.C = temp_carry;
-    flags.Y = ((a - read_value - flags.H) & 0x02) >>> 1;
-    flags.X = ((a - read_value - flags.H) & 0x08) >>> 3;
+    this.do_cp(read_value);
+    this.flg.C = temp_carry;
+    this.flg.Y = ((a - read_value - this.flg.H) & 0x02) >>> 1;
+    this.flg.X = ((a - read_value - this.flg.H) & 0x08) >>> 3;
     var result = (l | (h << 8)) + 1;
     l = result & 0xff;
     h = (result & 0xff00) >>> 8;
     result = (c | (b << 8)) - 1;
     c = result & 0xff;
     b = (result & 0xff00) >>> 8;
-    flags.P = result ? 1 : 0;
+    this.flg.P = result ? 1 : 0;
   };
-  let do_ini = function () {
-    b = do_dec(b);
+  this.do_ini = () => {
+    b = this.do_dec(b);
     this.mem.write(l | (h << 8), this.core.io.read((b << 8) | c));
     var result = (l | (h << 8)) + 1;
     l = result & 0xff;
     h = (result & 0xff00) >>> 8;
-    flags.N = 1;
+    this.flg.N = 1;
   };
-  let do_outi = function () {
+  this.do_outi = () => {
     this.core.io.write((b << 8) | c, this.mem.read(l | (h << 8)));
     var result = (l | (h << 8)) + 1;
     l = result & 0xff;
     h = (result & 0xff00) >>> 8;
-    b = do_dec(b);
-    flags.N = 1;
+    b = this.do_dec(b);
+    this.flg.N = 1;
   };
-  let do_ldd = function () {
-    flags.N = 0;
-    flags.H = 0;
+  this.do_ldd = () => {
+    this.flg.N = 0;
+    this.flg.H = 0;
     var read_value = this.mem.read(l | (h << 8));
     this.mem.write(e | (d << 8), read_value);
     var result = (e | (d << 8)) - 1;
@@ -476,1738 +490,1767 @@ function Z80(core,mem) {
     result = (c | (b << 8)) - 1;
     c = result & 0xff;
     b = (result & 0xff00) >>> 8;
-    flags.P = c || b ? 1 : 0;
-    flags.Y = ((a + read_value) & 0x02) >>> 1;
-    flags.X = ((a + read_value) & 0x08) >>> 3;
+    this.flg.P = c || b ? 1 : 0;
+    this.flg.Y = ((a + read_value) & 0x02) >>> 1;
+    this.flg.X = ((a + read_value) & 0x08) >>> 3;
   };
-  let do_cpd = function () {
-    var temp_carry = flags.C;
+  this.do_cpd = () => {
+    var temp_carry = this.flg.C;
     var read_value = this.mem.read(l | (h << 8));
-    do_cp(read_value);
-    flags.C = temp_carry;
-    flags.Y = ((a - read_value - flags.H) & 0x02) >>> 1;
-    flags.X = ((a - read_value - flags.H) & 0x08) >>> 3;
+    this.do_cp(read_value);
+    this.flg.C = temp_carry;
+    this.flg.Y = ((a - read_value - this.flg.H) & 0x02) >>> 1;
+    this.flg.X = ((a - read_value - this.flg.H) & 0x08) >>> 3;
     var result = (l | (h << 8)) - 1;
     l = result & 0xff;
     h = (result & 0xff00) >>> 8;
     result = (c | (b << 8)) - 1;
     c = result & 0xff;
     b = (result & 0xff00) >>> 8;
-    flags.P = result ? 1 : 0;
+    this.flg.P = result ? 1 : 0;
   };
-  let do_ind = function () {
-    b = do_dec(b);
+  this.do_ind = () => {
+    b = this.do_dec(b);
     this.mem.write(l | (h << 8), this.core.io.read((b << 8) | c));
     var result = (l | (h << 8)) - 1;
     l = result & 0xff;
     h = (result & 0xff00) >>> 8;
-    flags.N = 1;
+    this.flg.N = 1;
   };
-  let do_outd = function () {
+  this.do_outd = () => {
     this.core.io.write((b << 8) | c, this.mem.read(l | (h << 8)));
     var result = (l | (h << 8)) - 1;
     l = result & 0xff;
     h = (result & 0xff00) >>> 8;
-    b = do_dec(b);
-    flags.N = 1;
+    b = this.do_dec(b);
+    this.flg.N = 1;
   };
-  let do_rlc = function (operand) {
-    flags.N = 0;
-    flags.H = 0;
-    flags.C = (operand & 0x80) >>> 7;
-    operand = ((operand << 1) | flags.C) & 0xff;
-    flags.Z = !operand ? 1 : 0;
-    flags.P = get_parity(operand);
-    flags.S = operand & 0x80 ? 1 : 0;
-    update_xy_flags(operand);
+  this.do_rlc = (operand) => {
+    this.flg.N = 0;
+    this.flg.H = 0;
+    this.flg.C = (operand & 0x80) >>> 7;
+    operand = ((operand << 1) | this.flg.C) & 0xff;
+    this.flg.Z = !operand ? 1 : 0;
+    this.flg.P = this.parity_bits[operand];
+    this.flg.S = operand & 0x80 ? 1 : 0;
+    this.update_xy_flags(operand);
     return operand;
   };
-  let do_rrc = function (operand) {
-    flags.N = 0;
-    flags.H = 0;
-    flags.C = operand & 1;
-    operand = ((operand >>> 1) & 0x7f) | (flags.C << 7);
-    flags.Z = !(operand & 0xff) ? 1 : 0;
-    flags.P = get_parity(operand);
-    flags.S = operand & 0x80 ? 1 : 0;
-    update_xy_flags(operand);
+  this.do_rrc = (operand) => {
+    this.flg.N = 0;
+    this.flg.H = 0;
+    this.flg.C = operand & 1;
+    operand = ((operand >>> 1) & 0x7f) | (this.flg.C << 7);
+    this.flg.Z = !(operand & 0xff) ? 1 : 0;
+    this.flg.P = this.parity_bits[operand];
+    this.flg.S = operand & 0x80 ? 1 : 0;
+    this.update_xy_flags(operand);
     return operand & 0xff;
   };
-  let do_rl = function (operand) {
-    flags.N = 0;
-    flags.H = 0;
-    var temp = flags.C;
-    flags.C = (operand & 0x80) >>> 7;
+  this.do_rl = (operand) => {
+    this.flg.N = 0;
+    this.flg.H = 0;
+    var temp = this.flg.C;
+    this.flg.C = (operand & 0x80) >>> 7;
     operand = ((operand << 1) | temp) & 0xff;
-    flags.Z = !operand ? 1 : 0;
-    flags.P = get_parity(operand);
-    flags.S = operand & 0x80 ? 1 : 0;
-    update_xy_flags(operand);
+    this.flg.Z = !operand ? 1 : 0;
+    this.flg.P = this.parity_bits[operand];
+    this.flg.S = operand & 0x80 ? 1 : 0;
+    this.update_xy_flags(operand);
     return operand;
   };
-  let do_rr = function (operand) {
-    flags.N = 0;
-    flags.H = 0;
-    var temp = flags.C;
-    flags.C = operand & 1;
+  this.do_rr = (operand) => {
+    this.flg.N = 0;
+    this.flg.H = 0;
+    var temp = this.flg.C;
+    this.flg.C = operand & 1;
     operand = ((operand >>> 1) & 0x7f) | (temp << 7);
-    flags.Z = !operand ? 1 : 0;
-    flags.P = get_parity(operand);
-    flags.S = operand & 0x80 ? 1 : 0;
-    update_xy_flags(operand);
+    this.flg.Z = !operand ? 1 : 0;
+    this.flg.P = this.parity_bits[operand];
+    this.flg.S = operand & 0x80 ? 1 : 0;
+    this.update_xy_flags(operand);
     return operand;
   };
-  let do_sla = function (operand) {
-    flags.N = 0;
-    flags.H = 0;
-    flags.C = (operand & 0x80) >>> 7;
+  this.do_sla = (operand) => {
+    this.flg.N = 0;
+    this.flg.H = 0;
+    this.flg.C = (operand & 0x80) >>> 7;
     operand = (operand << 1) & 0xff;
-    flags.Z = !operand ? 1 : 0;
-    flags.P = get_parity(operand);
-    flags.S = operand & 0x80 ? 1 : 0;
-    update_xy_flags(operand);
+    this.flg.Z = !operand ? 1 : 0;
+    this.flg.P = this.parity_bits[operand];
+    this.flg.S = operand & 0x80 ? 1 : 0;
+    this.update_xy_flags(operand);
     return operand;
   };
-  let do_sra = function (operand) {
-    flags.N = 0;
-    flags.H = 0;
-    flags.C = operand & 1;
+  this.do_sra = (operand) => {
+    this.flg.N = 0;
+    this.flg.H = 0;
+    this.flg.C = operand & 1;
     operand = ((operand >>> 1) & 0x7f) | (operand & 0x80);
-    flags.Z = !operand ? 1 : 0;
-    flags.P = get_parity(operand);
-    flags.S = operand & 0x80 ? 1 : 0;
-    update_xy_flags(operand);
+    this.flg.Z = !operand ? 1 : 0;
+    this.flg.P = this.parity_bits[operand];
+    this.flg.S = operand & 0x80 ? 1 : 0;
+    this.update_xy_flags(operand);
     return operand;
   };
-  let do_sll = function (operand) {
-    flags.N = 0;
-    flags.H = 0;
-    flags.C = (operand & 0x80) >>> 7;
+  this.do_sll = (operand) => {
+    this.flg.N = 0;
+    this.flg.H = 0;
+    this.flg.C = (operand & 0x80) >>> 7;
     operand = ((operand << 1) & 0xff) | 1;
-    flags.Z = !operand ? 1 : 0;
-    flags.P = get_parity(operand);
-    flags.S = operand & 0x80 ? 1 : 0;
-    update_xy_flags(operand);
+    this.flg.Z = !operand ? 1 : 0;
+    this.flg.P = this.parity_bits[operand];
+    this.flg.S = operand & 0x80 ? 1 : 0;
+    this.update_xy_flags(operand);
     return operand;
   };
-  let do_srl = function (operand) {
-    flags.N = 0;
-    flags.H = 0;
-    flags.C = operand & 1;
+  this.do_srl = (operand) => {
+    this.flg.N = 0;
+    this.flg.H = 0;
+    this.flg.C = operand & 1;
     operand = (operand >>> 1) & 0x7f;
-    flags.Z = !operand ? 1 : 0;
-    flags.P = get_parity(operand);
-    flags.S = 0;
-    update_xy_flags(operand);
+    this.flg.Z = !operand ? 1 : 0;
+    this.flg.P = this.parity_bits[operand];
+    this.flg.S = 0;
+    this.update_xy_flags(operand);
     return operand;
   };
-  let do_ix_add = function (operand) {
-    flags.N = 0;
+  this.do_ix_add = (operand) => {
+    this.flg.N = 0;
     var result = ix + operand;
-    flags.C = result & 0x10000 ? 1 : 0;
-    flags.H = ((ix & 0xfff) + (operand & 0xfff)) & 0x1000 ? 1 : 0;
-    update_xy_flags((result & 0xff00) >>> 8);
+    this.flg.C = result & 0x10000 ? 1 : 0;
+    this.flg.H = ((ix & 0xfff) + (operand & 0xfff)) & 0x1000 ? 1 : 0;
+    this.update_xy_flags((result & 0xff00) >>> 8);
     ix = result;
   };
-  let instructions = [];
-  instructions[0x00] = function () {};
-  instructions[0x01] = function () {
-    pc = (pc + 1) & 0xffff;
-    c = this.mem.read(pc);
-    pc = (pc + 1) & 0xffff;
-    b = this.mem.read(pc);
-  };
-  instructions[0x02] = function () {
-    this.mem.write(c | (b << 8), a);
-  };
-  instructions[0x03] = function () {
-    var result = c | (b << 8);
-    result += 1;
-    c = result & 0xff;
-    b = (result & 0xff00) >>> 8;
-  };
-  instructions[0x04] = function () {
-    b = do_inc(b);
-  };
-  instructions[0x05] = function () {
-    b = do_dec(b);
-  };
-  instructions[0x06] = function () {
-    pc = (pc + 1) & 0xffff;
-    b = this.mem.read(pc);
-  };
-  instructions[0x07] = function () {
-    var temp_s = flags.S,
-      temp_z = flags.Z,
-      temp_p = flags.P;
-    a = do_rlc(a);
-    flags.S = temp_s;
-    flags.Z = temp_z;
-    flags.P = temp_p;
-  };
-  instructions[0x08] = function () {
-    var temp = a;
-    a = a_prime;
-    a_prime = temp;
-    temp = get_flags_register();
-    set_flags_register(get_flags_prime());
-    set_flags_prime(temp);
-  };
-  instructions[0x09] = function () {
-    do_hl_add(c | (b << 8));
-  };
-  instructions[0x0a] = function () {
-    a = this.mem.read(c | (b << 8));
-  };
-  instructions[0x0b] = function () {
-    var result = c | (b << 8);
-    result -= 1;
-    c = result & 0xff;
-    b = (result & 0xff00) >>> 8;
-  };
-  instructions[0x0c] = function () {
-    c = do_inc(c);
-  };
-  instructions[0x0d] = function () {
-    c = do_dec(c);
-  };
-  instructions[0x0e] = function () {
-    pc = (pc + 1) & 0xffff;
-    c = this.mem.read(pc);
-  };
-  instructions[0x0f] = function () {
-    var temp_s = flags.S,
-      temp_z = flags.Z,
-      temp_p = flags.P;
-    a = do_rrc(a);
-    flags.S = temp_s;
-    flags.Z = temp_z;
-    flags.P = temp_p;
-  };
-  instructions[0x10] = function () {
-    b = (b - 1) & 0xff;
-    do_conditional_relative_jump(b !== 0);
-  };
-  instructions[0x11] = function () {
-    pc = (pc + 1) & 0xffff;
-    e = this.mem.read(pc);
-    pc = (pc + 1) & 0xffff;
-    d = this.mem.read(pc);
-  };
-  instructions[0x12] = function () {
-    this.mem.write(e | (d << 8), a);
-  };
-  instructions[0x13] = function () {
-    var result = e | (d << 8);
-    result += 1;
-    e = result & 0xff;
-    d = (result & 0xff00) >>> 8;
-  };
-  instructions[0x14] = function () {
-    d = do_inc(d);
-  };
-  instructions[0x15] = function () {
-    d = do_dec(d);
-  };
-  instructions[0x16] = function () {
-    pc = (pc + 1) & 0xffff;
-    d = this.mem.read(pc);
-  };
-  instructions[0x17] = function () {
-    var temp_s = flags.S,
-      temp_z = flags.Z,
-      temp_p = flags.P;
-    a = do_rl(a);
-    flags.S = temp_s;
-    flags.Z = temp_z;
-    flags.P = temp_p;
-  };
-  instructions[0x18] = function () {
-    var offset = get_signed_offset_byte(this.mem.read((pc + 1) & 0xffff));
-    pc = (pc + offset + 1) & 0xffff;
-  };
-  instructions[0x19] = function () {
-    do_hl_add(e | (d << 8));
-  };
-  instructions[0x1a] = function () {
-    a = this.mem.read(e | (d << 8));
-  };
-  instructions[0x1b] = function () {
-    var result = e | (d << 8);
-    result -= 1;
-    e = result & 0xff;
-    d = (result & 0xff00) >>> 8;
-  };
-  instructions[0x1c] = function () {
-    e = do_inc(e);
-  };
-  instructions[0x1d] = function () {
-    e = do_dec(e);
-  };
-  instructions[0x1e] = function () {
-    pc = (pc + 1) & 0xffff;
-    e = this.mem.read(pc);
-  };
-  instructions[0x1f] = function () {
-    var temp_s = flags.S,
-      temp_z = flags.Z,
-      temp_p = flags.P;
-    a = do_rr(a);
-    flags.S = temp_s;
-    flags.Z = temp_z;
-    flags.P = temp_p;
-  };
-  instructions[0x20] = function () {
-    do_conditional_relative_jump(!flags.Z);
-  };
-  instructions[0x21] = function () {
-    pc = (pc + 1) & 0xffff;
-    l = this.mem.read(pc);
-    pc = (pc + 1) & 0xffff;
-    h = this.mem.read(pc);
-  };
-  instructions[0x22] = function () {
-    pc = (pc + 1) & 0xffff;
-    var address = this.mem.read(pc);
-    pc = (pc + 1) & 0xffff;
-    address |= this.mem.read(pc) << 8;
-    this.mem.write(address, l);
-    this.mem.write((address + 1) & 0xffff, h);
-  };
-  instructions[0x23] = function () {
-    var result = l | (h << 8);
-    result += 1;
-    l = result & 0xff;
-    h = (result & 0xff00) >>> 8;
-  };
-  instructions[0x24] = function () {
-    h = do_inc(h);
-  };
-  instructions[0x25] = function () {
-    h = do_dec(h);
-  };
-  instructions[0x26] = function () {
-    pc = (pc + 1) & 0xffff;
-    h = this.mem.read(pc);
-  };
-  instructions[0x27] = function () {
-    var temp = a;
-    if (!flags.N) {
-      if (flags.H || (a & 0x0f) > 9) temp += 0x06;
-      if (flags.C || a > 0x99) temp += 0x60;
-    } else {
-      if (flags.H || (a & 0x0f) > 9) temp -= 0x06;
-      if (flags.C || a > 0x99) temp -= 0x60;
-    }
-    flags.S = temp & 0x80 ? 1 : 0;
-    flags.Z = !(temp & 0xff) ? 1 : 0;
-    flags.H = (a & 0x10) ^ (temp & 0x10) ? 1 : 0;
-    flags.P = get_parity(temp & 0xff);
-    flags.C = flags.C || a > 0x99 ? 1 : 0;
-    a = temp & 0xff;
-    update_xy_flags(a);
-  };
-  instructions[0x28] = function () {
-    do_conditional_relative_jump(!!flags.Z);
-  };
-  instructions[0x29] = function () {
-    do_hl_add(l | (h << 8));
-  };
-  instructions[0x2a] = function () {
-    pc = (pc + 1) & 0xffff;
-    var address = this.mem.read(pc);
-    pc = (pc + 1) & 0xffff;
-    address |= this.mem.read(pc) << 8;
-    l = this.mem.read(address);
-    h = this.mem.read((address + 1) & 0xffff);
-  };
-  instructions[0x2b] = function () {
-    var result = l | (h << 8);
-    result -= 1;
-    l = result & 0xff;
-    h = (result & 0xff00) >>> 8;
-  };
-  instructions[0x2c] = function () {
-    l = do_inc(l);
-  };
-  instructions[0x2d] = function () {
-    l = do_dec(l);
-  };
-  instructions[0x2e] = function () {
-    pc = (pc + 1) & 0xffff;
-    l = this.mem.read(pc);
-  };
-  instructions[0x2f] = function () {
-    a = ~a & 0xff;
-    flags.N = 1;
-    flags.H = 1;
-    update_xy_flags(a);
-  };
-  instructions[0x30] = function () {
-    do_conditional_relative_jump(!flags.C);
-  };
-  instructions[0x31] = function () {
-    sp = this.mem.read((pc + 1) & 0xffff) | (this.mem.read((pc + 2) & 0xffff) << 8);
-    pc = (pc + 2) & 0xffff;
-  };
-  instructions[0x32] = function () {
-    pc = (pc + 1) & 0xffff;
-    var address = this.mem.read(pc);
-    pc = (pc + 1) & 0xffff;
-    address |= this.mem.read(pc) << 8;
-    this.mem.write(address, a);
-  };
-  instructions[0x33] = function () {
-    sp = (sp + 1) & 0xffff;
-  };
-  instructions[0x34] = function () {
-    var address = l | (h << 8);
-    this.mem.write(address, do_inc(this.mem.read(address)));
-  };
-  instructions[0x35] = function () {
-    var address = l | (h << 8);
-    this.mem.write(address, do_dec(this.mem.read(address)));
-  };
-  instructions[0x36] = function () {
-    pc = (pc + 1) & 0xffff;
-    this.mem.write(l | (h << 8), this.mem.read(pc));
-  };
-  instructions[0x37] = function () {
-    flags.N = 0;
-    flags.H = 0;
-    flags.C = 1;
-    update_xy_flags(a);
-  };
-  instructions[0x38] = function () {
-    do_conditional_relative_jump(!!flags.C);
-  };
-  instructions[0x39] = function () {
-    do_hl_add(sp);
-  };
-  instructions[0x3a] = function () {
-    pc = (pc + 1) & 0xffff;
-    var address = this.mem.read(pc);
-    pc = (pc + 1) & 0xffff;
-    address |= this.mem.read(pc) << 8;
-    a = this.mem.read(address);
-  };
-  instructions[0x3b] = function () {
-    sp = (sp - 1) & 0xffff;
-  };
-  instructions[0x3c] = function () {
-    a = do_inc(a);
-  };
-  instructions[0x3d] = function () {
-    a = do_dec(a);
-  };
-  instructions[0x3e] = function () {
-    a = this.mem.read((pc + 1) & 0xffff);
-    pc = (pc + 1) & 0xffff;
-  };
-  instructions[0x3f] = function () {
-    flags.N = 0;
-    flags.H = flags.C;
-    flags.C = flags.C ? 0 : 1;
-    update_xy_flags(a);
-  };
-  instructions[0xc0] = function () {
-    do_conditional_return(!flags.Z);
-  };
-  instructions[0xc1] = function () {
-    var result = pop_word();
-    c = result & 0xff;
-    b = (result & 0xff00) >>> 8;
-  };
-  instructions[0xc2] = function () {
-    do_conditional_absolute_jump(!flags.Z);
-  };
-  instructions[0xc3] = function () {
-    pc = this.mem.read((pc + 1) & 0xffff) | (this.mem.read((pc + 2) & 0xffff) << 8);
-    pc = (pc - 1) & 0xffff;
-  };
-  instructions[0xc4] = function () {
-    do_conditional_call(!flags.Z);
-  };
-  instructions[0xc5] = function () {
-    this.push_word(c | (b << 8));
-  };
-  instructions[0xc6] = function () {
-    pc = (pc + 1) & 0xffff;
-    do_add(this.mem.read(pc));
-  };
-  instructions[0xc7] = function () {
-    this.do_reset(0x00);
-  };
-  instructions[0xc8] = function () {
-    do_conditional_return(!!flags.Z);
-  };
-  instructions[0xc9] = function () {
-    pc = (pop_word() - 1) & 0xffff;
-  };
-  instructions[0xca] = function () {
-    do_conditional_absolute_jump(!!flags.Z);
-  };
-  instructions[0xcb] = function () {
-    r = (r & 0x80) | (((r & 0x7f) + 1) & 0x7f);
-    pc = (pc + 1) & 0xffff;
-    var opcode = this.mem.read(pc),
-      bit_number = (opcode & 0x38) >>> 3,
-      reg_code = opcode & 0x07;
-    if (opcode < 0x40) {
-      var op_array = [do_rlc, do_rrc, do_rl, do_rr, do_sla, do_sra, do_sll, do_srl];
-      if (reg_code === 0) b = op_array[bit_number](b);
-      else if (reg_code === 1) c = op_array[bit_number](c);
-      else if (reg_code === 2) d = op_array[bit_number](d);
-      else if (reg_code === 3) e = op_array[bit_number](e);
-      else if (reg_code === 4) h = op_array[bit_number](h);
-      else if (reg_code === 5) l = op_array[bit_number](l);
-      else if (reg_code === 6)
-        this.mem.write(l | (h << 8), op_array[bit_number](this.mem.read(l | (h << 8))));
-      else if (reg_code === 7) a = op_array[bit_number](a);
-    } else if (opcode < 0x80) {
-      if (reg_code === 0) flags.Z = !(b & (1 << bit_number)) ? 1 : 0;
-      else if (reg_code === 1) flags.Z = !(c & (1 << bit_number)) ? 1 : 0;
-      else if (reg_code === 2) flags.Z = !(d & (1 << bit_number)) ? 1 : 0;
-      else if (reg_code === 3) flags.Z = !(e & (1 << bit_number)) ? 1 : 0;
-      else if (reg_code === 4) flags.Z = !(h & (1 << bit_number)) ? 1 : 0;
-      else if (reg_code === 5) flags.Z = !(l & (1 << bit_number)) ? 1 : 0;
-      else if (reg_code === 6) flags.Z = !(this.mem.read(l | (h << 8)) & (1 << bit_number)) ? 1 : 0;
-      else if (reg_code === 7) flags.Z = !(a & (1 << bit_number)) ? 1 : 0;
-      flags.N = 0;
-      flags.H = 1;
-      flags.P = flags.Z;
-      flags.S = bit_number === 7 && !flags.Z ? 1 : 0;
-      flags.Y = bit_number === 5 && !flags.Z ? 1 : 0;
-      flags.X = bit_number === 3 && !flags.Z ? 1 : 0;
-    } else if (opcode < 0xc0) {
-      if (reg_code === 0) b &= 0xff & ~(1 << bit_number);
-      else if (reg_code === 1) c &= 0xff & ~(1 << bit_number);
-      else if (reg_code === 2) d &= 0xff & ~(1 << bit_number);
-      else if (reg_code === 3) e &= 0xff & ~(1 << bit_number);
-      else if (reg_code === 4) h &= 0xff & ~(1 << bit_number);
-      else if (reg_code === 5) l &= 0xff & ~(1 << bit_number);
-      else if (reg_code === 6)
-        this.mem.write(l | (h << 8), this.mem.read(l | (h << 8)) & ~(1 << bit_number));
-      else if (reg_code === 7) a &= 0xff & ~(1 << bit_number);
-    } else {
-      if (reg_code === 0) b |= 1 << bit_number;
-      else if (reg_code === 1) c |= 1 << bit_number;
-      else if (reg_code === 2) d |= 1 << bit_number;
-      else if (reg_code === 3) e |= 1 << bit_number;
-      else if (reg_code === 4) h |= 1 << bit_number;
-      else if (reg_code === 5) l |= 1 << bit_number;
-      else if (reg_code === 6)
-        this.mem.write(l | (h << 8), this.mem.read(l | (h << 8)) | (1 << bit_number));
-      else if (reg_code === 7) a |= 1 << bit_number;
-    }
-    cycle_counter += cycle_counts_cb[opcode];
-  };
-  instructions[0xcc] = function () {
-    do_conditional_call(!!flags.Z);
-  };
-  instructions[0xcd] = function () {
-    this.push_word((pc + 3) & 0xffff);
-    pc = this.mem.read((pc + 1) & 0xffff) | (this.mem.read((pc + 2) & 0xffff) << 8);
-    pc = (pc - 1) & 0xffff;
-  };
-  instructions[0xce] = function () {
-    pc = (pc + 1) & 0xffff;
-    do_adc(this.mem.read(pc));
-  };
-  instructions[0xcf] = function () {
-    this.do_reset(0x08);
-  };
-  instructions[0xd0] = function () {
-    do_conditional_return(!flags.C);
-  };
-  instructions[0xd1] = function () {
-    var result = pop_word();
-    e = result & 0xff;
-    d = (result & 0xff00) >>> 8;
-  };
-  instructions[0xd2] = function () {
-    do_conditional_absolute_jump(!flags.C);
-  };
-  instructions[0xd3] = function () {
-    pc = (pc + 1) & 0xffff;
-    this.core.io.write((a << 8) | this.mem.read(pc), a);
-  };
-  instructions[0xd4] = function () {
-    do_conditional_call(!flags.C);
-  };
-  instructions[0xd5] = function () {
-    this.push_word(e | (d << 8));
-  };
-  instructions[0xd6] = function () {
-    pc = (pc + 1) & 0xffff;
-    do_sub(this.mem.read(pc));
-  };
-  instructions[0xd7] = function () {
-    this.do_reset(0x10);
-  };
-  instructions[0xd8] = function () {
-    do_conditional_return(!!flags.C);
-  };
-  instructions[0xd9] = function () {
-    var temp = b;
-    b = b_prime;
-    b_prime = temp;
-    temp = c;
-    c = c_prime;
-    c_prime = temp;
-    temp = d;
-    d = d_prime;
-    d_prime = temp;
-    temp = e;
-    e = e_prime;
-    e_prime = temp;
-    temp = h;
-    h = h_prime;
-    h_prime = temp;
-    temp = l;
-    l = l_prime;
-    l_prime = temp;
-  };
-  instructions[0xda] = function () {
-    do_conditional_absolute_jump(!!flags.C);
-  };
-  instructions[0xdb] = function () {
-    pc = (pc + 1) & 0xffff;
-    a = this.core.io.read((a << 8) | this.mem.read(pc));
-  };
-  instructions[0xdc] = function () {
-    do_conditional_call(!!flags.C);
-  };
-  instructions[0xdd] = function () {
-    r = (r & 0x80) | (((r & 0x7f) + 1) & 0x7f);
-    pc = (pc + 1) & 0xffff;
-    var opcode = this.mem.read(pc),
-      func = dd_instructions[opcode];
-    if (func) {
-      func();
-      cycle_counter += cycle_counts_dd[opcode];
-    } else {
-      pc = (pc - 1) & 0xffff;
-      cycle_counter += cycle_counts[0];
-    }
-  };
-  instructions[0xde] = function () {
-    pc = (pc + 1) & 0xffff;
-    do_sbc(this.mem.read(pc));
-  };
-  instructions[0xdf] = function () {
-    this.do_reset(0x18);
-  };
-  instructions[0xe0] = function () {
-    do_conditional_return(!flags.P);
-  };
-  instructions[0xe1] = function () {
-    var result = pop_word();
-    l = result & 0xff;
-    h = (result & 0xff00) >>> 8;
-  };
-  instructions[0xe2] = function () {
-    do_conditional_absolute_jump(!flags.P);
-  };
-  instructions[0xe3] = function () {
-    var temp = this.mem.read(sp);
-    this.mem.write(sp, l);
-    l = temp;
-    temp = this.mem.read((sp + 1) & 0xffff);
-    this.mem.write((sp + 1) & 0xffff, h);
-    h = temp;
-  };
-  instructions[0xe4] = function () {
-    do_conditional_call(!flags.P);
-  };
-  instructions[0xe5] = function () {
-    this.push_word(l | (h << 8));
-  };
-  instructions[0xe6] = function () {
-    pc = (pc + 1) & 0xffff;
-    do_and(this.mem.read(pc));
-  };
-  instructions[0xe7] = function () {
-    this.do_reset(0x20);
-  };
-  instructions[0xe8] = function () {
-    do_conditional_return(!!flags.P);
-  };
-  instructions[0xe9] = function () {
-    pc = l | (h << 8);
-    pc = (pc - 1) & 0xffff;
-  };
-  instructions[0xea] = function () {
-    do_conditional_absolute_jump(!!flags.P);
-  };
-  instructions[0xeb] = function () {
-    var temp = d;
-    d = h;
-    h = temp;
-    temp = e;
-    e = l;
-    l = temp;
-  };
-  instructions[0xec] = function () {
-    do_conditional_call(!!flags.P);
-  };
-  instructions[0xed] = function () {
-    r = (r & 0x80) | (((r & 0x7f) + 1) & 0x7f);
-    pc = (pc + 1) & 0xffff;
-    var opcode = this.mem.read(pc),
-      func = ed_instructions[opcode];
-    if (func) {
-      func();
-      cycle_counter += cycle_counts_ed[opcode];
-    } else {
-      cycle_counter += cycle_counts[0];
-    }
-  };
-  instructions[0xee] = function () {
-    pc = (pc + 1) & 0xffff;
-    do_xor(this.mem.read(pc));
-  };
-  instructions[0xef] = function () {
-    this.do_reset(0x28);
-  };
-  instructions[0xf0] = function () {
-    do_conditional_return(!flags.S);
-  };
-  instructions[0xf1] = function () {
-    var result = pop_word();
-    set_flags_register(result & 0xff);
-    a = (result & 0xff00) >>> 8;
-  };
-  instructions[0xf2] = function () {
-    do_conditional_absolute_jump(!flags.S);
-  };
-  instructions[0xf3] = function () {
-    do_delayed_di = true;
-  };
-  instructions[0xf4] = function () {
-    do_conditional_call(!flags.S);
-  };
-  instructions[0xf5] = function () {
-    this.push_word(get_flags_register() | (a << 8));
-  };
-  instructions[0xf6] = function () {
-    pc = (pc + 1) & 0xffff;
-    do_or(this.mem.read(pc));
-  };
-  instructions[0xf7] = function () {
-    this.do_reset(0x30);
-  };
-  instructions[0xf8] = function () {
-    do_conditional_return(!!flags.S);
-  };
-  instructions[0xf9] = function () {
-    sp = l | (h << 8);
-  };
-  instructions[0xfa] = function () {
-    do_conditional_absolute_jump(!!flags.S);
-  };
-  instructions[0xfb] = function () {
-    do_delayed_ei = true;
-  };
-  instructions[0xfc] = function () {
-    do_conditional_call(!!flags.S);
-  };
-  instructions[0xfd] = function () {
-    r = (r & 0x80) | (((r & 0x7f) + 1) & 0x7f);
-    pc = (pc + 1) & 0xffff;
-    var opcode = this.mem.read(pc),
-      func = dd_instructions[opcode];
-    if (func) {
-      var temp = ix;
-      ix = iy;
-      func();
-      iy = ix;
-      ix = temp;
-      cycle_counter += cycle_counts_dd[opcode];
-    } else {
-      pc = (pc - 1) & 0xffff;
-      cycle_counter += cycle_counts[0];
-    }
-  };
-  instructions[0xfe] = function () {
-    pc = (pc + 1) & 0xffff;
-    do_cp(this.mem.read(pc));
-  };
-  instructions[0xff] = function () {
-    this.do_reset(0x38);
-  };
-  let ed_instructions = [];
-  ed_instructions[0x40] = function () {
-    b = do_in((b << 8) | c);
-  };
-  ed_instructions[0x41] = function () {
-    this.core.io.write((b << 8) | c, b);
-  };
-  ed_instructions[0x42] = function () {
-    do_hl_sbc(c | (b << 8));
-  };
-  ed_instructions[0x43] = function () {
-    pc = (pc + 1) & 0xffff;
-    var address = this.mem.read(pc);
-    pc = (pc + 1) & 0xffff;
-    address |= this.mem.read(pc) << 8;
-    this.mem.write(address, c);
-    this.mem.write((address + 1) & 0xffff, b);
-  };
-  ed_instructions[0x44] = function () {
-    do_neg();
-  };
-  ed_instructions[0x45] = function () {
-    pc = (pop_word() - 1) & 0xffff;
-    iff1 = iff2;
-  };
-  ed_instructions[0x46] = function () {
-    imode = 0;
-  };
-  ed_instructions[0x47] = function () {
-    i = a;
-  };
-  ed_instructions[0x48] = function () {
-    c = do_in((b << 8) | c);
-  };
-  ed_instructions[0x49] = function () {
-    this.core.io.write((b << 8) | c, c);
-  };
-  ed_instructions[0x4a] = function () {
-    do_hl_adc(c | (b << 8));
-  };
-  ed_instructions[0x4b] = function () {
-    pc = (pc + 1) & 0xffff;
-    var address = this.mem.read(pc);
-    pc = (pc + 1) & 0xffff;
-    address |= this.mem.read(pc) << 8;
-    c = this.mem.read(address);
-    b = this.mem.read((address + 1) & 0xffff);
-  };
-  ed_instructions[0x4c] = function () {
-    do_neg();
-  };
-  ed_instructions[0x4d] = function () {
-    pc = (pop_word() - 1) & 0xffff;
-  };
-  ed_instructions[0x4e] = function () {
-    imode = 0;
-  };
-  ed_instructions[0x4f] = function () {
-    r = a;
-  };
-  ed_instructions[0x50] = function () {
-    d = do_in((b << 8) | c);
-  };
-  ed_instructions[0x51] = function () {
-    this.core.io.write((b << 8) | c, d);
-  };
-  ed_instructions[0x52] = function () {
-    do_hl_sbc(e | (d << 8));
-  };
-  ed_instructions[0x53] = function () {
-    pc = (pc + 1) & 0xffff;
-    var address = this.mem.read(pc);
-    pc = (pc + 1) & 0xffff;
-    address |= this.mem.read(pc) << 8;
-    this.mem.write(address, e);
-    this.mem.write((address + 1) & 0xffff, d);
-  };
-  ed_instructions[0x54] = function () {
-    do_neg();
-  };
-  ed_instructions[0x55] = function () {
-    pc = (pop_word() - 1) & 0xffff;
-    iff1 = iff2;
-  };
-  ed_instructions[0x56] = function () {
-    imode = 1;
-  };
-  ed_instructions[0x57] = function () {
-    a = i;
-    flags.S = a & 0x80 ? 1 : 0;
-    flags.Z = a ? 0 : 1;
-    flags.H = 0;
-    flags.P = iff2;
-    flags.N = 0;
-    update_xy_flags(a);
-  };
-  ed_instructions[0x58] = function () {
-    e = do_in((b << 8) | c);
-  };
-  ed_instructions[0x59] = function () {
-    this.core.io.write((b << 8) | c, e);
-  };
-  ed_instructions[0x5a] = function () {
-    do_hl_adc(e | (d << 8));
-  };
-  ed_instructions[0x5b] = function () {
-    pc = (pc + 1) & 0xffff;
-    var address = this.mem.read(pc);
-    pc = (pc + 1) & 0xffff;
-    address |= this.mem.read(pc) << 8;
-    e = this.mem.read(address);
-    d = this.mem.read((address + 1) & 0xffff);
-  };
-  ed_instructions[0x5c] = function () {
-    do_neg();
-  };
-  ed_instructions[0x5d] = function () {
-    pc = (pop_word() - 1) & 0xffff;
-    iff1 = iff2;
-  };
-  ed_instructions[0x5e] = function () {
-    imode = 2;
-  };
-  ed_instructions[0x5f] = function () {
-    a = r;
-    flags.S = a & 0x80 ? 1 : 0;
-    flags.Z = a ? 0 : 1;
-    flags.H = 0;
-    flags.P = iff2;
-    flags.N = 0;
-    update_xy_flags(a);
-  };
-  ed_instructions[0x60] = function () {
-    h = do_in((b << 8) | c);
-  };
-  ed_instructions[0x61] = function () {
-    this.core.io.write((b << 8) | c, h);
-  };
-  ed_instructions[0x62] = function () {
-    do_hl_sbc(l | (h << 8));
-  };
-  ed_instructions[0x63] = function () {
-    pc = (pc + 1) & 0xffff;
-    var address = this.mem.read(pc);
-    pc = (pc + 1) & 0xffff;
-    address |= this.mem.read(pc) << 8;
-    this.mem.write(address, l);
-    this.mem.write((address + 1) & 0xffff, h);
-  };
-  ed_instructions[0x64] = function () {
-    do_neg();
-  };
-  ed_instructions[0x65] = function () {
-    pc = (pop_word() - 1) & 0xffff;
-    iff1 = iff2;
-  };
-  ed_instructions[0x66] = function () {
-    imode = 0;
-  };
-  ed_instructions[0x67] = function () {
-    var hl_value = this.mem.read(l | (h << 8));
-    var temp1 = hl_value & 0x0f,
-      temp2 = a & 0x0f;
-    hl_value = ((hl_value & 0xf0) >>> 4) | (temp2 << 4);
-    a = (a & 0xf0) | temp1;
-    this.mem.write(l | (h << 8), hl_value);
-    flags.S = a & 0x80 ? 1 : 0;
-    flags.Z = a ? 0 : 1;
-    flags.H = 0;
-    flags.P = get_parity(a) ? 1 : 0;
-    flags.N = 0;
-    update_xy_flags(a);
-  };
-  ed_instructions[0x68] = function () {
-    l = do_in((b << 8) | c);
-  };
-  ed_instructions[0x69] = function () {
-    this.core.io.write((b << 8) | c, l);
-  };
-  ed_instructions[0x6a] = function () {
-    do_hl_adc(l | (h << 8));
-  };
-  ed_instructions[0x6b] = function () {
-    pc = (pc + 1) & 0xffff;
-    var address = this.mem.read(pc);
-    pc = (pc + 1) & 0xffff;
-    address |= this.mem.read(pc) << 8;
-    l = this.mem.read(address);
-    h = this.mem.read((address + 1) & 0xffff);
-  };
-  ed_instructions[0x6c] = function () {
-    do_neg();
-  };
-  ed_instructions[0x6d] = function () {
-    pc = (pop_word() - 1) & 0xffff;
-    iff1 = iff2;
-  };
-  ed_instructions[0x6e] = function () {
-    imode = 0;
-  };
-  ed_instructions[0x6f] = function () {
-    var hl_value = this.mem.read(l | (h << 8));
-    var temp1 = hl_value & 0xf0,
-      temp2 = a & 0x0f;
-    hl_value = ((hl_value & 0x0f) << 4) | temp2;
-    a = (a & 0xf0) | (temp1 >>> 4);
-    this.mem.write(l | (h << 8), hl_value);
-    flags.S = a & 0x80 ? 1 : 0;
-    flags.Z = a ? 0 : 1;
-    flags.H = 0;
-    flags.P = get_parity(a) ? 1 : 0;
-    flags.N = 0;
-    update_xy_flags(a);
-  };
-  ed_instructions[0x70] = function () {
-    do_in((b << 8) | c);
-  };
-  ed_instructions[0x71] = function () {
-    this.core.io.write((b << 8) | c, 0);
-  };
-  ed_instructions[0x72] = function () {
-    do_hl_sbc(sp);
-  };
-  ed_instructions[0x73] = function () {
-    pc = (pc + 1) & 0xffff;
-    var address = this.mem.read(pc);
-    pc = (pc + 1) & 0xffff;
-    address |= this.mem.read(pc) << 8;
-    this.mem.write(address, sp & 0xff);
-    this.mem.write((address + 1) & 0xffff, (sp >>> 8) & 0xff);
-  };
-  ed_instructions[0x74] = function () {
-    do_neg();
-  };
-  ed_instructions[0x75] = function () {
-    pc = (pop_word() - 1) & 0xffff;
-    iff1 = iff2;
-  };
-  ed_instructions[0x76] = function () {
-    imode = 1;
-  };
-  ed_instructions[0x78] = function () {
-    a = do_in((b << 8) | c);
-  };
-  ed_instructions[0x79] = function () {
-    this.core.io.write((b << 8) | c, a);
-  };
-  ed_instructions[0x7a] = function () {
-    do_hl_adc(sp);
-  };
-  ed_instructions[0x7b] = function () {
-    pc = (pc + 1) & 0xffff;
-    var address = this.mem.read(pc);
-    pc = (pc + 1) & 0xffff;
-    address |= this.mem.read(pc) << 8;
-    sp = this.mem.read(address);
-    sp |= this.mem.read((address + 1) & 0xffff) << 8;
-  };
-  ed_instructions[0x7c] = function () {
-    do_neg();
-  };
-  ed_instructions[0x7d] = function () {
-    pc = (pop_word() - 1) & 0xffff;
-    iff1 = iff2;
-  };
-  ed_instructions[0x7e] = function () {
-    imode = 2;
-  };
-  ed_instructions[0xa0] = function () {
-    do_ldi();
-  };
-  ed_instructions[0xa1] = function () {
-    do_cpi();
-  };
-  ed_instructions[0xa2] = function () {
-    do_ini();
-  };
-  ed_instructions[0xa3] = function () {
-    do_outi();
-  };
-  ed_instructions[0xa8] = function () {
-    do_ldd();
-  };
-  ed_instructions[0xa9] = function () {
-    do_cpd();
-  };
-  ed_instructions[0xaa] = function () {
-    do_ind();
-  };
-  ed_instructions[0xab] = function () {
-    do_outd();
-  };
-  ed_instructions[0xb0] = function () {
-    do_ldi();
-    if (b || c) {
-      cycle_counter += 5;
-      pc = (pc - 2) & 0xffff;
-    }
-  };
-  ed_instructions[0xb1] = function () {
-    do_cpi();
-    if (!flags.Z && (b || c)) {
-      cycle_counter += 5;
-      pc = (pc - 2) & 0xffff;
-    }
-  };
-  ed_instructions[0xb2] = function () {
-    do_ini();
-    if (b) {
-      cycle_counter += 5;
-      pc = (pc - 2) & 0xffff;
-    }
-  };
-  ed_instructions[0xb3] = function () {
-    do_outi();
-    if (b) {
-      cycle_counter += 5;
-      pc = (pc - 2) & 0xffff;
-    }
-  };
-  ed_instructions[0xb8] = function () {
-    do_ldd();
-    if (b || c) {
-      cycle_counter += 5;
-      pc = (pc - 2) & 0xffff;
-    }
-  };
-  ed_instructions[0xb9] = function () {
-    do_cpd();
-    if (!flags.Z && (b || c)) {
-      cycle_counter += 5;
-      pc = (pc - 2) & 0xffff;
-    }
-  };
-  ed_instructions[0xba] = function () {
-    do_ind();
-    if (b) {
-      cycle_counter += 5;
-      pc = (pc - 2) & 0xffff;
-    }
-  };
-  ed_instructions[0xbb] = function () {
-    do_outd();
-    if (b) {
-      cycle_counter += 5;
-      pc = (pc - 2) & 0xffff;
-    }
-  };
-  let dd_instructions = [];
-  dd_instructions[0x09] = function () {
-    do_ix_add(c | (b << 8));
-  };
-  dd_instructions[0x19] = function () {
-    do_ix_add(e | (d << 8));
-  };
-  dd_instructions[0x21] = function () {
-    pc = (pc + 1) & 0xffff;
-    ix = this.mem.read(pc);
-    pc = (pc + 1) & 0xffff;
-    ix |= this.mem.read(pc) << 8;
-  };
-  dd_instructions[0x22] = function () {
-    pc = (pc + 1) & 0xffff;
-    var address = this.mem.read(pc);
-    pc = (pc + 1) & 0xffff;
-    address |= this.mem.read(pc) << 8;
-    this.mem.write(address, ix & 0xff);
-    this.mem.write((address + 1) & 0xffff, (ix >>> 8) & 0xff);
-  };
-  dd_instructions[0x23] = function () {
-    ix = (ix + 1) & 0xffff;
-  };
-  dd_instructions[0x24] = function () {
-    ix = (do_inc(ix >>> 8) << 8) | (ix & 0xff);
-  };
-  dd_instructions[0x25] = function () {
-    ix = (do_dec(ix >>> 8) << 8) | (ix & 0xff);
-  };
-  dd_instructions[0x26] = function () {
-    pc = (pc + 1) & 0xffff;
-    ix = (this.mem.read(pc) << 8) | (ix & 0xff);
-  };
-  dd_instructions[0x29] = function () {
-    do_ix_add(ix);
-  };
-  dd_instructions[0x2a] = function () {
-    pc = (pc + 1) & 0xffff;
-    var address = this.mem.read(pc);
-    pc = (pc + 1) & 0xffff;
-    address |= this.mem.read(pc) << 8;
-    ix = this.mem.read(address);
-    ix |= this.mem.read((address + 1) & 0xffff) << 8;
-  };
-  dd_instructions[0x2b] = function () {
-    ix = (ix - 1) & 0xffff;
-  };
-  dd_instructions[0x2c] = function () {
-    ix = do_inc(ix & 0xff) | (ix & 0xff00);
-  };
-  dd_instructions[0x2d] = function () {
-    ix = do_dec(ix & 0xff) | (ix & 0xff00);
-  };
-  dd_instructions[0x2e] = function () {
-    pc = (pc + 1) & 0xffff;
-    ix = (this.mem.read(pc) & 0xff) | (ix & 0xff00);
-  };
-  dd_instructions[0x34] = function () {
-    pc = (pc + 1) & 0xffff;
-    var offset = get_signed_offset_byte(this.mem.read(pc)),
-      value = this.mem.read((offset + ix) & 0xffff);
-    this.mem.write((offset + ix) & 0xffff, do_inc(value));
-  };
-  dd_instructions[0x35] = function () {
-    pc = (pc + 1) & 0xffff;
-    var offset = get_signed_offset_byte(this.mem.read(pc)),
-      value = this.mem.read((offset + ix) & 0xffff);
-    this.mem.write((offset + ix) & 0xffff, do_dec(value));
-  };
-  dd_instructions[0x36] = function () {
-    pc = (pc + 1) & 0xffff;
-    var offset = get_signed_offset_byte(this.mem.read(pc));
-    pc = (pc + 1) & 0xffff;
-    this.mem.write((ix + offset) & 0xffff, this.mem.read(pc));
-  };
-  dd_instructions[0x39] = function () {
-    do_ix_add(sp);
-  };
-  dd_instructions[0x44] = function () {
-    b = (ix >>> 8) & 0xff;
-  };
-  dd_instructions[0x45] = function () {
-    b = ix & 0xff;
-  };
-  dd_instructions[0x46] = function () {
-    pc = (pc + 1) & 0xffff;
-    var offset = get_signed_offset_byte(this.mem.read(pc));
-    b = this.mem.read((ix + offset) & 0xffff);
-  };
-  dd_instructions[0x4c] = function () {
-    c = (ix >>> 8) & 0xff;
-  };
-  dd_instructions[0x4d] = function () {
-    c = ix & 0xff;
-  };
-  dd_instructions[0x4e] = function () {
-    pc = (pc + 1) & 0xffff;
-    var offset = get_signed_offset_byte(this.mem.read(pc));
-    c = this.mem.read((ix + offset) & 0xffff);
-  };
-  dd_instructions[0x54] = function () {
-    d = (ix >>> 8) & 0xff;
-  };
-  dd_instructions[0x55] = function () {
-    d = ix & 0xff;
-  };
-  dd_instructions[0x56] = function () {
-    pc = (pc + 1) & 0xffff;
-    var offset = get_signed_offset_byte(this.mem.read(pc));
-    d = this.mem.read((ix + offset) & 0xffff);
-  };
-  dd_instructions[0x5c] = function () {
-    e = (ix >>> 8) & 0xff;
-  };
-  dd_instructions[0x5d] = function () {
-    e = ix & 0xff;
-  };
-  dd_instructions[0x5e] = function () {
-    pc = (pc + 1) & 0xffff;
-    var offset = get_signed_offset_byte(this.mem.read(pc));
-    e = this.mem.read((ix + offset) & 0xffff);
-  };
-  dd_instructions[0x60] = function () {
-    ix = (ix & 0xff) | (b << 8);
-  };
-  dd_instructions[0x61] = function () {
-    ix = (ix & 0xff) | (c << 8);
-  };
-  dd_instructions[0x62] = function () {
-    ix = (ix & 0xff) | (d << 8);
-  };
-  dd_instructions[0x63] = function () {
-    ix = (ix & 0xff) | (e << 8);
-  };
-  dd_instructions[0x64] = function () {};
-  dd_instructions[0x65] = function () {
-    ix = (ix & 0xff) | ((ix & 0xff) << 8);
-  };
-  dd_instructions[0x66] = function () {
-    pc = (pc + 1) & 0xffff;
-    var offset = get_signed_offset_byte(this.mem.read(pc));
-    h = this.mem.read((ix + offset) & 0xffff);
-  };
-  dd_instructions[0x67] = function () {
-    ix = (ix & 0xff) | (a << 8);
-  };
-  dd_instructions[0x68] = function () {
-    ix = (ix & 0xff00) | b;
-  };
-  dd_instructions[0x69] = function () {
-    ix = (ix & 0xff00) | c;
-  };
-  dd_instructions[0x6a] = function () {
-    ix = (ix & 0xff00) | d;
-  };
-  dd_instructions[0x6b] = function () {
-    ix = (ix & 0xff00) | e;
-  };
-  dd_instructions[0x6c] = function () {
-    ix = (ix & 0xff00) | (ix >>> 8);
-  };
-  dd_instructions[0x6d] = function () {};
-  dd_instructions[0x6e] = function () {
-    pc = (pc + 1) & 0xffff;
-    var offset = get_signed_offset_byte(this.mem.read(pc));
-    l = this.mem.read((ix + offset) & 0xffff);
-  };
-  dd_instructions[0x6f] = function () {
-    ix = (ix & 0xff00) | a;
-  };
-  dd_instructions[0x70] = function () {
-    pc = (pc + 1) & 0xffff;
-    var offset = get_signed_offset_byte(this.mem.read(pc));
-    this.mem.write((ix + offset) & 0xffff, b);
-  };
-  dd_instructions[0x71] = function () {
-    pc = (pc + 1) & 0xffff;
-    var offset = get_signed_offset_byte(this.mem.read(pc));
-    this.mem.write((ix + offset) & 0xffff, c);
-  };
-  dd_instructions[0x72] = function () {
-    pc = (pc + 1) & 0xffff;
-    var offset = get_signed_offset_byte(this.mem.read(pc));
-    this.mem.write((ix + offset) & 0xffff, d);
-  };
-  dd_instructions[0x73] = function () {
-    pc = (pc + 1) & 0xffff;
-    var offset = get_signed_offset_byte(this.mem.read(pc));
-    this.mem.write((ix + offset) & 0xffff, e);
-  };
-  dd_instructions[0x74] = function () {
-    pc = (pc + 1) & 0xffff;
-    var offset = get_signed_offset_byte(this.mem.read(pc));
-    this.mem.write((ix + offset) & 0xffff, h);
-  };
-  dd_instructions[0x75] = function () {
-    pc = (pc + 1) & 0xffff;
-    var offset = get_signed_offset_byte(this.mem.read(pc));
-    this.mem.write((ix + offset) & 0xffff, l);
-  };
-  dd_instructions[0x77] = function () {
-    pc = (pc + 1) & 0xffff;
-    var offset = get_signed_offset_byte(this.mem.read(pc));
-    this.mem.write((ix + offset) & 0xffff, a);
-  };
-  dd_instructions[0x7c] = function () {
-    a = (ix >>> 8) & 0xff;
-  };
-  dd_instructions[0x7d] = function () {
-    a = ix & 0xff;
-  };
-  dd_instructions[0x7e] = function () {
-    pc = (pc + 1) & 0xffff;
-    var offset = get_signed_offset_byte(this.mem.read(pc));
-    a = this.mem.read((ix + offset) & 0xffff);
-  };
-  dd_instructions[0x84] = function () {
-    do_add((ix >>> 8) & 0xff);
-  };
-  dd_instructions[0x85] = function () {
-    do_add(ix & 0xff);
-  };
-  dd_instructions[0x86] = function () {
-    pc = (pc + 1) & 0xffff;
-    var offset = get_signed_offset_byte(this.mem.read(pc));
-    do_add(this.mem.read((ix + offset) & 0xffff));
-  };
-  dd_instructions[0x8c] = function () {
-    do_adc((ix >>> 8) & 0xff);
-  };
-  dd_instructions[0x8d] = function () {
-    do_adc(ix & 0xff);
-  };
-  dd_instructions[0x8e] = function () {
-    pc = (pc + 1) & 0xffff;
-    var offset = get_signed_offset_byte(this.mem.read(pc));
-    do_adc(this.mem.read((ix + offset) & 0xffff));
-  };
-  dd_instructions[0x94] = function () {
-    do_sub((ix >>> 8) & 0xff);
-  };
-  dd_instructions[0x95] = function () {
-    do_sub(ix & 0xff);
-  };
-  dd_instructions[0x96] = function () {
-    pc = (pc + 1) & 0xffff;
-    var offset = get_signed_offset_byte(this.mem.read(pc));
-    do_sub(this.mem.read((ix + offset) & 0xffff));
-  };
-  dd_instructions[0x9c] = function () {
-    do_sbc((ix >>> 8) & 0xff);
-  };
-  dd_instructions[0x9d] = function () {
-    do_sbc(ix & 0xff);
-  };
-  dd_instructions[0x9e] = function () {
-    pc = (pc + 1) & 0xffff;
-    var offset = get_signed_offset_byte(this.mem.read(pc));
-    do_sbc(this.mem.read((ix + offset) & 0xffff));
-  };
-  dd_instructions[0xa4] = function () {
-    do_and((ix >>> 8) & 0xff);
-  };
-  dd_instructions[0xa5] = function () {
-    do_and(ix & 0xff);
-  };
-  dd_instructions[0xa6] = function () {
-    pc = (pc + 1) & 0xffff;
-    var offset = get_signed_offset_byte(this.mem.read(pc));
-    do_and(this.mem.read((ix + offset) & 0xffff));
-  };
-  dd_instructions[0xac] = function () {
-    do_xor((ix >>> 8) & 0xff);
-  };
-  dd_instructions[0xad] = function () {
-    do_xor(ix & 0xff);
-  };
-  dd_instructions[0xae] = function () {
-    pc = (pc + 1) & 0xffff;
-    var offset = get_signed_offset_byte(this.mem.read(pc));
-    do_xor(this.mem.read((ix + offset) & 0xffff));
-  };
-  dd_instructions[0xb4] = function () {
-    do_or((ix >>> 8) & 0xff);
-  };
-  dd_instructions[0xb5] = function () {
-    do_or(ix & 0xff);
-  };
-  dd_instructions[0xb6] = function () {
-    pc = (pc + 1) & 0xffff;
-    var offset = get_signed_offset_byte(this.mem.read(pc));
-    do_or(this.mem.read((ix + offset) & 0xffff));
-  };
-  dd_instructions[0xbc] = function () {
-    do_cp((ix >>> 8) & 0xff);
-  };
-  dd_instructions[0xbd] = function () {
-    do_cp(ix & 0xff);
-  };
-  dd_instructions[0xbe] = function () {
-    pc = (pc + 1) & 0xffff;
-    var offset = get_signed_offset_byte(this.mem.read(pc));
-    do_cp(this.mem.read((ix + offset) & 0xffff));
-  };
-  dd_instructions[0xcb] = function () {
-    pc = (pc + 1) & 0xffff;
-    var offset = get_signed_offset_byte(this.mem.read(pc));
-    pc = (pc + 1) & 0xffff;
-    var opcode = this.mem.read(pc),
-      value;
-    if (opcode < 0x40) {
-      var ddcb_functions = [do_rlc, do_rrc, do_rl, do_rr, do_sla, do_sra, do_sll, do_srl];
-      var func = ddcb_functions[(opcode & 0x38) >>> 3],
-        value = func(this.mem.read((ix + offset) & 0xffff));
-      this.mem.write((ix + offset) & 0xffff, value);
-    } else {
-      var bit_number = (opcode & 0x38) >>> 3;
-      if (opcode < 0x80) {
-        flags.N = 0;
-        flags.H = 1;
-        flags.Z = !(this.mem.read((ix + offset) & 0xffff) & (1 << bit_number)) ? 1 : 0;
-        flags.P = flags.Z;
-        flags.S = bit_number === 7 && !flags.Z ? 1 : 0;
-      } else if (opcode < 0xc0) {
-        value = this.mem.read((ix + offset) & 0xffff) & ~(1 << bit_number) & 0xff;
-        this.mem.write((ix + offset) & 0xffff, value);
-      } else {
-        value = this.mem.read((ix + offset) & 0xffff) | (1 << bit_number);
-        this.mem.write((ix + offset) & 0xffff, value);
+  
+
+  this.instructions = (opcode) => {
+    switch (opcode) {
+      case 0x00: {
+      }
+      case 0x01: {
+        pc = (pc + 1) & 0xffff;
+        c = this.mem.read(pc);
+        pc = (pc + 1) & 0xffff;
+        b = this.mem.read(pc);
+      }
+      case 0x02: {
+        this.mem.write(c | (b << 8), a);
+      }
+      case 0x03: {
+        var result = c | (b << 8);
+        result += 1;
+        c = result & 0xff;
+        b = (result & 0xff00) >>> 8;
+      }
+      case 0x04: {
+        b = this.do_inc(b);
+      }
+      case 0x05: {
+        b = this.do_dec(b);
+      }
+      case 0x06: {
+        pc = (pc + 1) & 0xffff;
+        b = this.mem.read(pc);
+      }
+      case 0x07: {
+        var temp_s = this.flg.S,
+          temp_z = this.flg.Z,
+          temp_p = this.flg.P;
+        a = this.do_rlc(a);
+        this.flg.S = temp_s;
+        this.flg.Z = temp_z;
+        this.flg.P = temp_p;
+      }
+      case 0x08: {
+        var temp = a;
+        a = this.a_prime;
+        this.a_prime = temp;
+        temp = this.get_flags_register();
+        this.set_flags_register(this.get_flags_prime());
+        this.set_flags_prime(temp);
+      }
+      case 0x09: {
+        this.do_hl_add(c | (b << 8));
+      }
+      case 0x0a: {
+        a = this.mem.read(c | (b << 8));
+      }
+      case 0x0b: {
+        var result = c | (b << 8);
+        result -= 1;
+        c = result & 0xff;
+        b = (result & 0xff00) >>> 8;
+      }
+      case 0x0c: {
+        c = this.do_inc(c);
+      }
+      case 0x0d: {
+        c = this.do_dec(c);
+      }
+      case 0x0e: {
+        pc = (pc + 1) & 0xffff;
+        c = this.mem.read(pc);
+      }
+      case 0x0f: {
+        var temp_s = this.flg.S,
+          temp_z = this.flg.Z,
+          temp_p = this.flg.P;
+        a = this.do_rrc(a);
+        this.flg.S = temp_s;
+        this.flg.Z = temp_z;
+        this.flg.P = temp_p;
+      }
+      case 0x10: {
+        b = (b - 1) & 0xff;
+        this.do_conditional_relative_jump(b !== 0);
+      }
+      case 0x11: {
+        pc = (pc + 1) & 0xffff;
+        e = this.mem.read(pc);
+        pc = (pc + 1) & 0xffff;
+        d = this.mem.read(pc);
+      }
+      case 0x12: {
+        this.mem.write(e | (d << 8), a);
+      }
+      case 0x13: {
+        var result = e | (d << 8);
+        result += 1;
+        e = result & 0xff;
+        d = (result & 0xff00) >>> 8;
+      }
+      case 0x14: {
+        d = this.do_inc(d);
+      }
+      case 0x15: {
+        d = this.do_dec(d);
+      }
+      case 0x16: {
+        pc = (pc + 1) & 0xffff;
+        d = this.mem.read(pc);
+      }
+      case 0x17: {
+        var temp_s = this.flg.S,
+          temp_z = this.flg.Z,
+          temp_p = this.flg.P;
+        a = this.do_rl(a);
+        this.flg.S = temp_s;
+        this.flg.Z = temp_z;
+        this.flg.P = temp_p;
+      }
+      case 0x18: {
+        var offset = this.get_signed_offset_byte(this.mem.read((pc + 1) & 0xffff));
+        pc = (pc + offset + 1) & 0xffff;
+      }
+      case 0x19: {
+        this.do_hl_add(e | (d << 8));
+      }
+      case 0x1a: {
+        a = this.mem.read(e | (d << 8));
+      }
+      case 0x1b: {
+        var result = e | (d << 8);
+        result -= 1;
+        e = result & 0xff;
+        d = (result & 0xff00) >>> 8;
+      }
+      case 0x1c: {
+        e = this.do_inc(e);
+      }
+      case 0x1d: {
+        e = this.do_dec(e);
+      }
+      case 0x1e: {
+        pc = (pc + 1) & 0xffff;
+        e = this.mem.read(pc);
+      }
+      case 0x1f: {
+        var temp_s = this.flg.S,
+          temp_z = this.flg.Z,
+          temp_p = this.flg.P;
+        a = this.do_rr(a);
+        this.flg.S = temp_s;
+        this.flg.Z = temp_z;
+        this.flg.P = temp_p;
+      }
+      case 0x20: {
+        this.do_conditional_relative_jump(!this.flg.Z);
+      }
+      case 0x21: {
+        pc = (pc + 1) & 0xffff;
+        l = this.mem.read(pc);
+        pc = (pc + 1) & 0xffff;
+        h = this.mem.read(pc);
+      }
+      case 0x22: {
+        pc = (pc + 1) & 0xffff;
+        var address = this.mem.read(pc);
+        pc = (pc + 1) & 0xffff;
+        address |= this.mem.read(pc) << 8;
+        this.mem.write(address, l);
+        this.mem.write((address + 1) & 0xffff, h);
+      }
+      case 0x23: {
+        var result = l | (h << 8);
+        result += 1;
+        l = result & 0xff;
+        h = (result & 0xff00) >>> 8;
+      }
+      case 0x24: {
+        h = this.do_inc(h);
+      }
+      case 0x25: {
+        h = this.do_dec(h);
+      }
+      case 0x26: {
+        pc = (pc + 1) & 0xffff;
+        h = this.mem.read(pc);
+      }
+      case 0x27: {
+        var temp = a;
+        if (!this.flg.N) {
+          if (this.flg.H || (a & 0x0f) > 9) temp += 0x06;
+          if (this.flg.C || a > 0x99) temp += 0x60;
+        } else {
+          if (this.flg.H || (a & 0x0f) > 9) temp -= 0x06;
+          if (this.flg.C || a > 0x99) temp -= 0x60;
+        }
+        this.flg.S = temp & 0x80 ? 1 : 0;
+        this.flg.Z = !(temp & 0xff) ? 1 : 0;
+        this.flg.H = (a & 0x10) ^ (temp & 0x10) ? 1 : 0;
+        this.flg.P = this.parity_bits[temp & 0xff];
+        this.flg.C = this.flg.C || a > 0x99 ? 1 : 0;
+        a = temp & 0xff;
+        this.update_xy_flags(a);
+      }
+      case 0x28: {
+        this.do_conditional_relative_jump(!!this.flg.Z);
+      }
+      case 0x29: {
+        this.do_hl_add(l | (h << 8));
+      }
+      case 0x2a: {
+        pc = (pc + 1) & 0xffff;
+        var address = this.mem.read(pc);
+        pc = (pc + 1) & 0xffff;
+        address |= this.mem.read(pc) << 8;
+        l = this.mem.read(address);
+        h = this.mem.read((address + 1) & 0xffff);
+      }
+      case 0x2b: {
+        var result = l | (h << 8);
+        result -= 1;
+        l = result & 0xff;
+        h = (result & 0xff00) >>> 8;
+      }
+      case 0x2c: {
+        l = this.do_inc(l);
+      }
+      case 0x2d: {
+        l = this.do_dec(l);
+      }
+      case 0x2e: {
+        pc = (pc + 1) & 0xffff;
+        l = this.mem.read(pc);
+      }
+      case 0x2f: {
+        a = ~a & 0xff;
+        this.flg.N = 1;
+        this.flg.H = 1;
+        this.update_xy_flags(a);
+      }
+      case 0x30: {
+        this.do_conditional_relative_jump(!this.flg.C);
+      }
+      case 0x31: {
+        sp = this.mem.read((pc + 1) & 0xffff) | (this.mem.read((pc + 2) & 0xffff) << 8);
+        pc = (pc + 2) & 0xffff;
+      }
+      case 0x32: {
+        pc = (pc + 1) & 0xffff;
+        var address = this.mem.read(pc);
+        pc = (pc + 1) & 0xffff;
+        address |= this.mem.read(pc) << 8;
+        this.mem.write(address, a);
+      }
+      case 0x33: {
+        sp = (sp + 1) & 0xffff;
+      }
+      case 0x34: {
+        var address = l | (h << 8);
+        this.mem.write(address, this.do_inc(this.mem.read(address)));
+      }
+      case 0x35: {
+        var address = l | (h << 8);
+        this.mem.write(address, this.do_dec(this.mem.read(address)));
+      }
+      case 0x36: {
+        pc = (pc + 1) & 0xffff;
+        this.mem.write(l | (h << 8), this.mem.read(pc));
+      }
+      case 0x37: {
+        this.flg.N = 0;
+        this.flg.H = 0;
+        this.flg.C = 1;
+        this.update_xy_flags(a);
+      }
+      case 0x38: {
+        this.do_conditional_relative_jump(!!this.flg.C);
+      }
+      case 0x39: {
+        this.do_hl_add(sp);
+      }
+      case 0x3a: {
+        pc = (pc + 1) & 0xffff;
+        var address = this.mem.read(pc);
+        pc = (pc + 1) & 0xffff;
+        address |= this.mem.read(pc) << 8;
+        a = this.mem.read(address);
+      }
+      case 0x3b: {
+        sp = (sp - 1) & 0xffff;
+      }
+      case 0x3c: {
+        a = this.do_inc(a);
+      }
+      case 0x3d: {
+        a = this.do_dec(a);
+      }
+      case 0x3e: {
+        a = this.mem.read((pc + 1) & 0xffff);
+        pc = (pc + 1) & 0xffff;
+      }
+      case 0x3f: {
+        this.flg.N = 0;
+        this.flg.H = this.flg.C;
+        this.flg.C = this.flg.C ? 0 : 1;
+        this.update_xy_flags(a);
+      }
+      case 0xc0: {
+        this.do_conditional_return(!this.flg.Z);
+      }
+      case 0xc1: {
+        var result = this.pop_word();
+        c = result & 0xff;
+        b = (result & 0xff00) >>> 8;
+      }
+      case 0xc2: {
+        this.do_conditional_absolute_jump(!this.flg.Z);
+      }
+      case 0xc3: {
+        pc = this.mem.read((pc + 1) & 0xffff) | (this.mem.read((pc + 2) & 0xffff) << 8);
+        pc = (pc - 1) & 0xffff;
+      }
+      case 0xc4: {
+        this.do_conditional_call(!this.flg.Z);
+      }
+      case 0xc5: {
+        this.push_word(c | (b << 8));
+      }
+      case 0xc6: {
+        pc = (pc + 1) & 0xffff;
+        this.do_add(this.mem.read(pc));
+      }
+      case 0xc7: {
+        this.do_reset(0x00);
+      }
+      case 0xc8: {
+        this.do_conditional_return(!!this.flg.Z);
+      }
+      case 0xc9: {
+        pc = (this.pop_word() - 1) & 0xffff;
+      }
+      case 0xca: {
+        this.do_conditional_absolute_jump(!!this.flg.Z);
+      }
+      case 0xcb: {
+        r = (r & 0x80) | (((r & 0x7f) + 1) & 0x7f);
+        pc = (pc + 1) & 0xffff;
+        var opcode = this.mem.read(pc),
+          bit_number = (opcode & 0x38) >>> 3,
+          reg_code = opcode & 0x07;
+        if (opcode < 0x40) {
+          var op_array = [
+            this.do_rlc,
+            this.do_rrc,
+            this.do_rl,
+            this.do_rr,
+            this.do_sla,
+            this.do_sra,
+            this.do_sll,
+            this.do_srl,
+          ];
+          if (reg_code === 0) b = op_array[bit_number](b);
+          else if (reg_code === 1) c = op_array[bit_number](c);
+          else if (reg_code === 2) d = op_array[bit_number](d);
+          else if (reg_code === 3) e = op_array[bit_number](e);
+          else if (reg_code === 4) h = op_array[bit_number](h);
+          else if (reg_code === 5) l = op_array[bit_number](l);
+          else if (reg_code === 6)
+            this.mem.write(l | (h << 8), op_array[bit_number](this.mem.read(l | (h << 8))));
+          else if (reg_code === 7) a = op_array[bit_number](a);
+        } else if (opcode < 0x80) {
+          if (reg_code === 0) this.flg.Z = !(b & (1 << bit_number)) ? 1 : 0;
+          else if (reg_code === 1) this.flg.Z = !(c & (1 << bit_number)) ? 1 : 0;
+          else if (reg_code === 2) this.flg.Z = !(d & (1 << bit_number)) ? 1 : 0;
+          else if (reg_code === 3) this.flg.Z = !(e & (1 << bit_number)) ? 1 : 0;
+          else if (reg_code === 4) this.flg.Z = !(h & (1 << bit_number)) ? 1 : 0;
+          else if (reg_code === 5) this.flg.Z = !(l & (1 << bit_number)) ? 1 : 0;
+          else if (reg_code === 6) this.flg.Z = !(this.mem.read(l | (h << 8)) & (1 << bit_number)) ? 1 : 0;
+          else if (reg_code === 7) this.flg.Z = !(a & (1 << bit_number)) ? 1 : 0;
+          this.flg.N = 0;
+          this.flg.H = 1;
+          this.flg.P = this.flg.Z;
+          this.flg.S = bit_number === 7 && !this.flg.Z ? 1 : 0;
+          this.flg.Y = bit_number === 5 && !this.flg.Z ? 1 : 0;
+          this.flg.X = bit_number === 3 && !this.flg.Z ? 1 : 0;
+        } else if (opcode < 0xc0) {
+          if (reg_code === 0) b &= 0xff & ~(1 << bit_number);
+          else if (reg_code === 1) c &= 0xff & ~(1 << bit_number);
+          else if (reg_code === 2) d &= 0xff & ~(1 << bit_number);
+          else if (reg_code === 3) e &= 0xff & ~(1 << bit_number);
+          else if (reg_code === 4) h &= 0xff & ~(1 << bit_number);
+          else if (reg_code === 5) l &= 0xff & ~(1 << bit_number);
+          else if (reg_code === 6)
+            this.mem.write(l | (h << 8), this.mem.read(l | (h << 8)) & ~(1 << bit_number));
+          else if (reg_code === 7) a &= 0xff & ~(1 << bit_number);
+        } else {
+          if (reg_code === 0) b |= 1 << bit_number;
+          else if (reg_code === 1) c |= 1 << bit_number;
+          else if (reg_code === 2) d |= 1 << bit_number;
+          else if (reg_code === 3) e |= 1 << bit_number;
+          else if (reg_code === 4) h |= 1 << bit_number;
+          else if (reg_code === 5) l |= 1 << bit_number;
+          else if (reg_code === 6)
+            this.mem.write(l | (h << 8), this.mem.read(l | (h << 8)) | (1 << bit_number));
+          else if (reg_code === 7) a |= 1 << bit_number;
+        }
+        this.cycle_counter += this.cycle_counts_cb[opcode];
+      }
+      case 0xcc: {
+        this.do_conditional_call(!!this.flg.Z);
+      }
+      case 0xcd: {
+        this.push_word((pc + 3) & 0xffff);
+        pc = this.mem.read((pc + 1) & 0xffff) | (this.mem.read((pc + 2) & 0xffff) << 8);
+        pc = (pc - 1) & 0xffff;
+      }
+      case 0xce: {
+        pc = (pc + 1) & 0xffff;
+        this.do_adc(this.mem.read(pc));
+      }
+      case 0xcf: {
+        this.do_reset(0x08);
+      }
+      case 0xd0: {
+        this.do_conditional_return(!this.flg.C);
+      }
+      case 0xd1: {
+        var result = this.pop_word();
+        e = result & 0xff;
+        d = (result & 0xff00) >>> 8;
+      }
+      case 0xd2: {
+        this.do_conditional_absolute_jump(!this.flg.C);
+      }
+      case 0xd3: {
+        pc = (pc + 1) & 0xffff;
+        this.core.io.write((a << 8) | this.mem.read(pc), a);
+      }
+      case 0xd4: {
+        this.do_conditional_call(!this.flg.C);
+      }
+      case 0xd5: {
+        this.push_word(e | (d << 8));
+      }
+      case 0xd6: {
+        pc = (pc + 1) & 0xffff;
+        this.do_sub(this.mem.read(pc));
+      }
+      case 0xd7: {
+        this.do_reset(0x10);
+      }
+      case 0xd8: {
+        this.do_conditional_return(!!this.flg.C);
+      }
+      case 0xd9: {
+        var temp = b;
+        b = this.b_prime;
+        this.b_prime = temp;
+        temp = c;
+        c = this.c_prime;
+        this.c_prime = temp;
+        temp = d;
+        d = this.d_prime;
+        this.d_prime = temp;
+        temp = e;
+        e = this.e_prime;
+        this.e_prime = temp;
+        temp = h;
+        h = this.h_prime;
+        this.h_prime = temp;
+        temp = l;
+        l = this.l_prime;
+        this.l_prime = temp;
+      }
+      case 0xda: {
+        this.do_conditional_absolute_jump(!!this.flg.C);
+      }
+      case 0xdb: {
+        pc = (pc + 1) & 0xffff;
+        a = this.core.io.read((a << 8) | this.mem.read(pc));
+      }
+      case 0xdc: {
+        this.do_conditional_call(!!this.flg.C);
+      }
+      case 0xdd: {
+        r = (r & 0x80) | (((r & 0x7f) + 1) & 0x7f);
+        pc = (pc + 1) & 0xffff;
+        var opcode = this.mem.read(pc),
+          func = this.dd_instructions[opcode];
+        if (func) {
+          func();
+          this.cycle_counter += this.cycle_counts_dd[opcode];
+        } else {
+          pc = (pc - 1) & 0xffff;
+          this.cycle_counter += this.cycle_counts[0];
+        }
+      }
+      case 0xde: {
+        pc = (pc + 1) & 0xffff;
+        this.do_sbc(this.mem.read(pc));
+      }
+      case 0xdf: {
+        this.do_reset(0x18);
+      }
+      case 0xe0: {
+        this.do_conditional_return(!this.flg.P);
+      }
+      case 0xe1: {
+        var result = this.pop_word();
+        l = result & 0xff;
+        h = (result & 0xff00) >>> 8;
+      }
+      case 0xe2: {
+        this.do_conditional_absolute_jump(!this.flg.P);
+      }
+      case 0xe3: {
+        var temp = this.mem.read(sp);
+        this.mem.write(sp, l);
+        l = temp;
+        temp = this.mem.read((sp + 1) & 0xffff);
+        this.mem.write((sp + 1) & 0xffff, h);
+        h = temp;
+      }
+      case 0xe4: {
+        this.do_conditional_call(!this.flg.P);
+      }
+      case 0xe5: {
+        this.push_word(l | (h << 8));
+      }
+      case 0xe6: {
+        pc = (pc + 1) & 0xffff;
+        this.do_and(this.mem.read(pc));
+      }
+      case 0xe7: {
+        this.do_reset(0x20);
+      }
+      case 0xe8: {
+        this.do_conditional_return(!!this.flg.P);
+      }
+      case 0xe9: {
+        pc = l | (h << 8);
+        pc = (pc - 1) & 0xffff;
+      }
+      case 0xea: {
+        this.do_conditional_absolute_jump(!!this.flg.P);
+      }
+      case 0xeb: {
+        var temp = d;
+        d = h;
+        h = temp;
+        temp = e;
+        e = l;
+        l = temp;
+      }
+      case 0xec: {
+        this.do_conditional_call(!!this.flg.P);
+      }
+      case 0xed: {
+        r = (r & 0x80) | (((r & 0x7f) + 1) & 0x7f);
+        pc = (pc + 1) & 0xffff;
+        var opcode = this.mem.read(pc),
+          func = this.ed_instructions[opcode];
+        if (func) {
+          func();
+          this.cycle_counter += this.cycle_counts_ed[opcode];
+        } else {
+          this.cycle_counter += this.cycle_counts[0];
+        }
+      }
+      case 0xee: {
+        pc = (pc + 1) & 0xffff;
+        this.do_xor(this.mem.read(pc));
+      }
+      case 0xef: {
+        this.do_reset(0x28);
+      }
+      case 0xf0: {
+        this.do_conditional_return(!this.flg.S);
+      }
+      case 0xf1: {
+        var result = this.pop_word();
+        this.set_flags_register(result & 0xff);
+        a = (result & 0xff00) >>> 8;
+      }
+      case 0xf2: {
+        this.do_conditional_absolute_jump(!this.flg.S);
+      }
+      case 0xf3: {
+        this.do_delayed_di = true;
+      }
+      case 0xf4: {
+        this.do_conditional_call(!this.flg.S);
+      }
+      case 0xf5: {
+        this.push_word(this.get_flags_register() | (a << 8));
+      }
+      case 0xf6: {
+        pc = (pc + 1) & 0xffff;
+        this.do_or(this.mem.read(pc));
+      }
+      case 0xf7: {
+        this.do_reset(0x30);
+      }
+      case 0xf8: {
+        this.do_conditional_return(!!this.flg.S);
+      }
+      case 0xf9: {
+        sp = l | (h << 8);
+      }
+      case 0xfa: {
+        this.do_conditional_absolute_jump(!!this.flg.S);
+      }
+      case 0xfb: {
+        this.do_delayed_ei = true;
+      }
+      case 0xfc: {
+        this.do_conditional_call(!!this.flg.S);
+      }
+      case 0xfd: {
+        r = (r & 0x80) | (((r & 0x7f) + 1) & 0x7f);
+        pc = (pc + 1) & 0xffff;
+        var opcode = this.mem.read(pc),
+          func = this.dd_instructions[opcode];
+        if (func) {
+          var temp = ix;
+          ix = iy;
+          func();
+          iy = ix;
+          ix = temp;
+          this.cycle_counter += this.cycle_counts_dd[opcode];
+        } else {
+          pc = (pc - 1) & 0xffff;
+          this.cycle_counter += this.cycle_counts[0];
+        }
+      }
+      case 0xfe: {
+        pc = (pc + 1) & 0xffff;
+        this.do_cp(this.mem.read(pc));
+      }
+      case 0xff: {
+        this.do_reset(0x38);
       }
     }
-    if (value !== undefined) {
-      if ((opcode & 0x07) === 0) b = value;
-      else if ((opcode & 0x07) === 1) c = value;
-      else if ((opcode & 0x07) === 2) d = value;
-      else if ((opcode & 0x07) === 3) e = value;
-      else if ((opcode & 0x07) === 4) h = value;
-      else if ((opcode & 0x07) === 5) l = value;
-      else if ((opcode & 0x07) === 7) a = value;
+  };
+  this.ed_instructions = (opcode) => {
+    switch (opcode) {
+      case 0x40: {
+        b = this.do_in((b << 8) | c);
+      }
+      case 0x41: {
+        this.core.io.write((b << 8) | c, b);
+      }
+      case 0x42: {
+        this.do_hl_sbc(c | (b << 8));
+      }
+      case 0x43: {
+        pc = (pc + 1) & 0xffff;
+        var address = this.mem.read(pc);
+        pc = (pc + 1) & 0xffff;
+        address |= this.mem.read(pc) << 8;
+        this.mem.write(address, c);
+        this.mem.write((address + 1) & 0xffff, b);
+      }
+      case 0x44: {
+        this.do_neg();
+      }
+      case 0x45: {
+        pc = (this.pop_word() - 1) & 0xffff;
+        this.iff1 = this.iff2;
+      }
+      case 0x46: {
+        this.imode = 0;
+      }
+      case 0x47: {
+        i = a;
+      }
+      case 0x48: {
+        c = this.do_in((b << 8) | c);
+      }
+      case 0x49: {
+        this.core.io.write((b << 8) | c, c);
+      }
+      case 0x4a: {
+        this.do_hl_adc(c | (b << 8));
+      }
+      case 0x4b: {
+        pc = (pc + 1) & 0xffff;
+        var address = this.mem.read(pc);
+        pc = (pc + 1) & 0xffff;
+        address |= this.mem.read(pc) << 8;
+        c = this.mem.read(address);
+        b = this.mem.read((address + 1) & 0xffff);
+      }
+      case 0x4c: {
+        this.do_neg();
+      }
+      case 0x4d: {
+        pc = (this.pop_word() - 1) & 0xffff;
+      }
+      case 0x4e: {
+        this.imode = 0;
+      }
+      case 0x4f: {
+        r = a;
+      }
+      case 0x50: {
+        d = this.do_in((b << 8) | c);
+      }
+      case 0x51: {
+        this.core.io.write((b << 8) | c, d);
+      }
+      case 0x52: {
+        this.do_hl_sbc(e | (d << 8));
+      }
+      case 0x53: {
+        pc = (pc + 1) & 0xffff;
+        var address = this.mem.read(pc);
+        pc = (pc + 1) & 0xffff;
+        address |= this.mem.read(pc) << 8;
+        this.mem.write(address, e);
+        this.mem.write((address + 1) & 0xffff, d);
+      }
+      case 0x54: {
+        this.do_neg();
+      }
+      case 0x55: {
+        pc = (this.pop_word() - 1) & 0xffff;
+        this.iff1 = this.iff2;
+      }
+      case 0x56: {
+        this.imode = 1;
+      }
+      case 0x57: {
+        a = i;
+        this.flg.S = a & 0x80 ? 1 : 0;
+        this.flg.Z = a ? 0 : 1;
+        this.flg.H = 0;
+        this.flg.P = this.iff2;
+        this.flg.N = 0;
+        this.update_xy_flags(a);
+      }
+      case 0x58: {
+        e = this.do_in((b << 8) | c);
+      }
+      case 0x59: {
+        this.core.io.write((b << 8) | c, e);
+      }
+      case 0x5a: {
+        this.do_hl_adc(e | (d << 8));
+      }
+      case 0x5b: {
+        pc = (pc + 1) & 0xffff;
+        var address = this.mem.read(pc);
+        pc = (pc + 1) & 0xffff;
+        address |= this.mem.read(pc) << 8;
+        e = this.mem.read(address);
+        d = this.mem.read((address + 1) & 0xffff);
+      }
+      case 0x5c: {
+        this.do_neg();
+      }
+      case 0x5d: {
+        pc = (this.pop_word() - 1) & 0xffff;
+        this.iff1 = this.iff2;
+      }
+      case 0x5e: {
+        this.imode = 2;
+      }
+      case 0x5f: {
+        a = r;
+        this.flg.S = a & 0x80 ? 1 : 0;
+        this.flg.Z = a ? 0 : 1;
+        this.flg.H = 0;
+        this.flg.P = this.iff2;
+        this.flg.N = 0;
+        this.update_xy_flags(a);
+      }
+      case 0x60: {
+        h = this.do_in((b << 8) | c);
+      }
+      case 0x61: {
+        this.core.io.write((b << 8) | c, h);
+      }
+      case 0x62: {
+        this.do_hl_sbc(l | (h << 8));
+      }
+      case 0x63: {
+        pc = (pc + 1) & 0xffff;
+        var address = this.mem.read(pc);
+        pc = (pc + 1) & 0xffff;
+        address |= this.mem.read(pc) << 8;
+        this.mem.write(address, l);
+        this.mem.write((address + 1) & 0xffff, h);
+      }
+      case 0x64: {
+        this.do_neg();
+      }
+      case 0x65: {
+        pc = (this.pop_word() - 1) & 0xffff;
+        this.iff1 = this.iff2;
+      }
+      case 0x66: {
+        this.imode = 0;
+      }
+      case 0x67: {
+        var hl_value = this.mem.read(l | (h << 8));
+        var temp1 = hl_value & 0x0f,
+          temp2 = a & 0x0f;
+        hl_value = ((hl_value & 0xf0) >>> 4) | (temp2 << 4);
+        a = (a & 0xf0) | temp1;
+        this.mem.write(l | (h << 8), hl_value);
+        this.flg.S = a & 0x80 ? 1 : 0;
+        this.flg.Z = a ? 0 : 1;
+        this.flg.H = 0;
+        this.flg.P = this.parity_bits[a] ? 1 : 0;
+        this.flg.N = 0;
+        this.update_xy_flags(a);
+      }
+      case 0x68: {
+        l = this.do_in((b << 8) | c);
+      }
+      case 0x69: {
+        this.core.io.write((b << 8) | c, l);
+      }
+      case 0x6a: {
+        this.do_hl_adc(l | (h << 8));
+      }
+      case 0x6b: {
+        pc = (pc + 1) & 0xffff;
+        var address = this.mem.read(pc);
+        pc = (pc + 1) & 0xffff;
+        address |= this.mem.read(pc) << 8;
+        l = this.mem.read(address);
+        h = this.mem.read((address + 1) & 0xffff);
+      }
+      case 0x6c: {
+        this.do_neg();
+      }
+      case 0x6d: {
+        pc = (this.pop_word() - 1) & 0xffff;
+        this.iff1 = this.iff2;
+      }
+      case 0x6e: {
+        this.imode = 0;
+      }
+      case 0x6f: {
+        var hl_value = this.mem.read(l | (h << 8));
+        var temp1 = hl_value & 0xf0,
+          temp2 = a & 0x0f;
+        hl_value = ((hl_value & 0x0f) << 4) | temp2;
+        a = (a & 0xf0) | (temp1 >>> 4);
+        this.mem.write(l | (h << 8), hl_value);
+        this.flg.S = a & 0x80 ? 1 : 0;
+        this.flg.Z = a ? 0 : 1;
+        this.flg.H = 0;
+        this.flg.P = this.parity_bits[a] ? 1 : 0;
+        this.flg.N = 0;
+        this.update_xy_flags(a);
+      }
+      case 0x70: {
+        this.do_in((b << 8) | c);
+      }
+      case 0x71: {
+        this.core.io.write((b << 8) | c, 0);
+      }
+      case 0x72: {
+        this.do_hl_sbc(sp);
+      }
+      case 0x73: {
+        pc = (pc + 1) & 0xffff;
+        var address = this.mem.read(pc);
+        pc = (pc + 1) & 0xffff;
+        address |= this.mem.read(pc) << 8;
+        this.mem.write(address, sp & 0xff);
+        this.mem.write((address + 1) & 0xffff, (sp >>> 8) & 0xff);
+      }
+      case 0x74: {
+        this.do_neg();
+      }
+      case 0x75: {
+        pc = (this.pop_word() - 1) & 0xffff;
+        this.iff1 = this.iff2;
+      }
+      case 0x76: {
+        this.imode = 1;
+      }
+      case 0x78: {
+        a = this.do_in((b << 8) | c);
+      }
+      case 0x79: {
+        this.core.io.write((b << 8) | c, a);
+      }
+      case 0x7a: {
+        this.do_hl_adc(sp);
+      }
+      case 0x7b: {
+        pc = (pc + 1) & 0xffff;
+        var address = this.mem.read(pc);
+        pc = (pc + 1) & 0xffff;
+        address |= this.mem.read(pc) << 8;
+        sp = this.mem.read(address);
+        sp |= this.mem.read((address + 1) & 0xffff) << 8;
+      }
+      case 0x7c: {
+        this.do_neg();
+      }
+      case 0x7d: {
+        pc = (this.pop_word() - 1) & 0xffff;
+        this.iff1 = this.iff2;
+      }
+      case 0x7e: {
+        this.imode = 2;
+      }
+      case 0xa0: {
+        this.do_ldi();
+      }
+      case 0xa1: {
+        this.do_cpi();
+      }
+      case 0xa2: {
+        this.do_ini();
+      }
+      case 0xa3: {
+        this.do_outi();
+      }
+      case 0xa8: {
+        this.do_ldd();
+      }
+      case 0xa9: {
+        this.do_cpd();
+      }
+      case 0xaa: {
+        this.do_ind();
+      }
+      case 0xab: {
+        this.do_outd();
+      }
+      case 0xb0: {
+        this.do_ldi();
+        if (b || c) {
+          this.cycle_counter += 5;
+          pc = (pc - 2) & 0xffff;
+        }
+      }
+      case 0xb1: {
+        this.do_cpi();
+        if (!this.flg.Z && (b || c)) {
+          this.cycle_counter += 5;
+          pc = (pc - 2) & 0xffff;
+        }
+      }
+      case 0xb2: {
+        this.do_ini();
+        if (b) {
+          this.cycle_counter += 5;
+          pc = (pc - 2) & 0xffff;
+        }
+      }
+      case 0xb3: {
+        this.do_outi();
+        if (b) {
+          this.cycle_counter += 5;
+          pc = (pc - 2) & 0xffff;
+        }
+      }
+      case 0xb8: {
+        this.do_ldd();
+        if (b || c) {
+          this.cycle_counter += 5;
+          pc = (pc - 2) & 0xffff;
+        }
+      }
+      case 0xb9: {
+        this.do_cpd();
+        if (!this.flg.Z && (b || c)) {
+          this.cycle_counter += 5;
+          pc = (pc - 2) & 0xffff;
+        }
+      }
+      case 0xba: {
+        this.do_ind();
+        if (b) {
+          this.cycle_counter += 5;
+          pc = (pc - 2) & 0xffff;
+        }
+      }
+      case 0xbb: {
+        this.do_outd();
+        if (b) {
+          this.cycle_counter += 5;
+          pc = (pc - 2) & 0xffff;
+        }
+      }
     }
-    cycle_counter += cycle_counts_cb[opcode] + 8;
   };
-  dd_instructions[0xe1] = function () {
-    ix = pop_word();
+  this.dd_instructions = (opcode) => {
+    switch (opcode) {
+      case 0x09: {
+        this.do_ix_add(c | (b << 8));
+      }
+      case 0x19: {
+        this.do_ix_add(e | (d << 8));
+      }
+      case 0x21: {
+        pc = (pc + 1) & 0xffff;
+        ix = this.mem.read(pc);
+        pc = (pc + 1) & 0xffff;
+        ix |= this.mem.read(pc) << 8;
+      }
+      case 0x22: {
+        pc = (pc + 1) & 0xffff;
+        var address = this.mem.read(pc);
+        pc = (pc + 1) & 0xffff;
+        address |= this.mem.read(pc) << 8;
+        this.mem.write(address, ix & 0xff);
+        this.mem.write((address + 1) & 0xffff, (ix >>> 8) & 0xff);
+      }
+      case 0x23: {
+        ix = (ix + 1) & 0xffff;
+      }
+      case 0x24: {
+        ix = (this.do_inc(ix >>> 8) << 8) | (ix & 0xff);
+      }
+      case 0x25: {
+        ix = (this.do_dec(ix >>> 8) << 8) | (ix & 0xff);
+      }
+      case 0x26: {
+        pc = (pc + 1) & 0xffff;
+        ix = (this.mem.read(pc) << 8) | (ix & 0xff);
+      }
+      case 0x29: {
+        this.do_ix_add(ix);
+      }
+      case 0x2a: {
+        pc = (pc + 1) & 0xffff;
+        var address = this.mem.read(pc);
+        pc = (pc + 1) & 0xffff;
+        address |= this.mem.read(pc) << 8;
+        ix = this.mem.read(address);
+        ix |= this.mem.read((address + 1) & 0xffff) << 8;
+      }
+      case 0x2b: {
+        ix = (ix - 1) & 0xffff;
+      }
+      case 0x2c: {
+        ix = this.do_inc(ix & 0xff) | (ix & 0xff00);
+      }
+      case 0x2d: {
+        ix = this.do_dec(ix & 0xff) | (ix & 0xff00);
+      }
+      case 0x2e: {
+        pc = (pc + 1) & 0xffff;
+        ix = (this.mem.read(pc) & 0xff) | (ix & 0xff00);
+      }
+      case 0x34: {
+        pc = (pc + 1) & 0xffff;
+        var offset = this.get_signed_offset_byte(this.mem.read(pc)),
+          value = this.mem.read((offset + ix) & 0xffff);
+        this.mem.write((offset + ix) & 0xffff, this.do_inc(value));
+      }
+      case 0x35: {
+        pc = (pc + 1) & 0xffff;
+        var offset = this.get_signed_offset_byte(this.mem.read(pc)),
+          value = this.mem.read((offset + ix) & 0xffff);
+        this.mem.write((offset + ix) & 0xffff, this.do_dec(value));
+      }
+      case 0x36: {
+        pc = (pc + 1) & 0xffff;
+        var offset = this.get_signed_offset_byte(this.mem.read(pc));
+        pc = (pc + 1) & 0xffff;
+        this.mem.write((ix + offset) & 0xffff, this.mem.read(pc));
+      }
+      case 0x39: {
+        this.do_ix_add(sp);
+      }
+      case 0x44: {
+        b = (ix >>> 8) & 0xff;
+      }
+      case 0x45: {
+        b = ix & 0xff;
+      }
+      case 0x46: {
+        pc = (pc + 1) & 0xffff;
+        var offset = this.get_signed_offset_byte(this.mem.read(pc));
+        b = this.mem.read((ix + offset) & 0xffff);
+      }
+      case 0x4c: {
+        c = (ix >>> 8) & 0xff;
+      }
+      case 0x4d: {
+        c = ix & 0xff;
+      }
+      case 0x4e: {
+        pc = (pc + 1) & 0xffff;
+        var offset = this.get_signed_offset_byte(this.mem.read(pc));
+        c = this.mem.read((ix + offset) & 0xffff);
+      }
+      case 0x54: {
+        d = (ix >>> 8) & 0xff;
+      }
+      case 0x55: {
+        d = ix & 0xff;
+      }
+      case 0x56: {
+        pc = (pc + 1) & 0xffff;
+        var offset = this.get_signed_offset_byte(this.mem.read(pc));
+        d = this.mem.read((ix + offset) & 0xffff);
+      }
+      case 0x5c: {
+        e = (ix >>> 8) & 0xff;
+      }
+      case 0x5d: {
+        e = ix & 0xff;
+      }
+      case 0x5e: {
+        pc = (pc + 1) & 0xffff;
+        var offset = this.get_signed_offset_byte(this.mem.read(pc));
+        e = this.mem.read((ix + offset) & 0xffff);
+      }
+      case 0x60: {
+        ix = (ix & 0xff) | (b << 8);
+      }
+      case 0x61: {
+        ix = (ix & 0xff) | (c << 8);
+      }
+      case 0x62: {
+        ix = (ix & 0xff) | (d << 8);
+      }
+      case 0x63: {
+        ix = (ix & 0xff) | (e << 8);
+      }
+      case 0x64: {
+      }
+      case 0x65: {
+        ix = (ix & 0xff) | ((ix & 0xff) << 8);
+      }
+      case 0x66: {
+        pc = (pc + 1) & 0xffff;
+        var offset = this.get_signed_offset_byte(this.mem.read(pc));
+        h = this.mem.read((ix + offset) & 0xffff);
+      }
+      case 0x67: {
+        ix = (ix & 0xff) | (a << 8);
+      }
+      case 0x68: {
+        ix = (ix & 0xff00) | b;
+      }
+      case 0x69: {
+        ix = (ix & 0xff00) | c;
+      }
+      case 0x6a: {
+        ix = (ix & 0xff00) | d;
+      }
+      case 0x6b: {
+        ix = (ix & 0xff00) | e;
+      }
+      case 0x6c: {
+        ix = (ix & 0xff00) | (ix >>> 8);
+      }
+      case 0x6d: {
+      }
+      case 0x6e: {
+        pc = (pc + 1) & 0xffff;
+        var offset = this.get_signed_offset_byte(this.mem.read(pc));
+        l = this.mem.read((ix + offset) & 0xffff);
+      }
+      case 0x6f: {
+        ix = (ix & 0xff00) | a;
+      }
+      case 0x70: {
+        pc = (pc + 1) & 0xffff;
+        var offset = this.get_signed_offset_byte(this.mem.read(pc));
+        this.mem.write((ix + offset) & 0xffff, b);
+      }
+      case 0x71: {
+        pc = (pc + 1) & 0xffff;
+        var offset = this.get_signed_offset_byte(this.mem.read(pc));
+        this.mem.write((ix + offset) & 0xffff, c);
+      }
+      case 0x72: {
+        pc = (pc + 1) & 0xffff;
+        var offset = this.get_signed_offset_byte(this.mem.read(pc));
+        this.mem.write((ix + offset) & 0xffff, d);
+      }
+      case 0x73: {
+        pc = (pc + 1) & 0xffff;
+        var offset = this.get_signed_offset_byte(this.mem.read(pc));
+        this.mem.write((ix + offset) & 0xffff, e);
+      }
+      case 0x74: {
+        pc = (pc + 1) & 0xffff;
+        var offset = this.get_signed_offset_byte(this.mem.read(pc));
+        this.mem.write((ix + offset) & 0xffff, h);
+      }
+      case 0x75: {
+        pc = (pc + 1) & 0xffff;
+        var offset = this.get_signed_offset_byte(this.mem.read(pc));
+        this.mem.write((ix + offset) & 0xffff, l);
+      }
+      case 0x77: {
+        pc = (pc + 1) & 0xffff;
+        var offset = this.get_signed_offset_byte(this.mem.read(pc));
+        this.mem.write((ix + offset) & 0xffff, a);
+      }
+      case 0x7c: {
+        a = (ix >>> 8) & 0xff;
+      }
+      case 0x7d: {
+        a = ix & 0xff;
+      }
+      case 0x7e: {
+        pc = (pc + 1) & 0xffff;
+        var offset = this.get_signed_offset_byte(this.mem.read(pc));
+        a = this.mem.read((ix + offset) & 0xffff);
+      }
+      case 0x84: {
+        this.do_add((ix >>> 8) & 0xff);
+      }
+      case 0x85: {
+        this.do_add(ix & 0xff);
+      }
+      case 0x86: {
+        pc = (pc + 1) & 0xffff;
+        var offset = this.get_signed_offset_byte(this.mem.read(pc));
+        this.do_add(this.mem.read((ix + offset) & 0xffff));
+      }
+      case 0x8c: {
+        this.do_adc((ix >>> 8) & 0xff);
+      }
+      case 0x8d: {
+        this.do_adc(ix & 0xff);
+      }
+      case 0x8e: {
+        pc = (pc + 1) & 0xffff;
+        var offset = this.get_signed_offset_byte(this.mem.read(pc));
+        this.do_adc(this.mem.read((ix + offset) & 0xffff));
+      }
+      case 0x94: {
+        this.do_sub((ix >>> 8) & 0xff);
+      }
+      case 0x95: {
+        this.do_sub(ix & 0xff);
+      }
+      case 0x96: {
+        pc = (pc + 1) & 0xffff;
+        var offset = this.get_signed_offset_byte(this.mem.read(pc));
+        this.do_sub(this.mem.read((ix + offset) & 0xffff));
+      }
+      case 0x9c: {
+        this.do_sbc((ix >>> 8) & 0xff);
+      }
+      case 0x9d: {
+        this.do_sbc(ix & 0xff);
+      }
+      case 0x9e: {
+        pc = (pc + 1) & 0xffff;
+        var offset = this.get_signed_offset_byte(this.mem.read(pc));
+        this.do_sbc(this.mem.read((ix + offset) & 0xffff));
+      }
+      case 0xa4: {
+        this.do_and((ix >>> 8) & 0xff);
+      }
+      case 0xa5: {
+        this.do_and(ix & 0xff);
+      }
+      case 0xa6: {
+        pc = (pc + 1) & 0xffff;
+        var offset = this.get_signed_offset_byte(this.mem.read(pc));
+        this.do_and(this.mem.read((ix + offset) & 0xffff));
+      }
+      case 0xac: {
+        this.do_xor((ix >>> 8) & 0xff);
+      }
+      case 0xad: {
+        this.do_xor(ix & 0xff);
+      }
+      case 0xae: {
+        pc = (pc + 1) & 0xffff;
+        var offset = this.get_signed_offset_byte(this.mem.read(pc));
+        this.do_xor(this.mem.read((ix + offset) & 0xffff));
+      }
+      case 0xb4: {
+        this.do_or((ix >>> 8) & 0xff);
+      }
+      case 0xb5: {
+        this.do_or(ix & 0xff);
+      }
+      case 0xb6: {
+        pc = (pc + 1) & 0xffff;
+        var offset = this.get_signed_offset_byte(this.mem.read(pc));
+        this.do_or(this.mem.read((ix + offset) & 0xffff));
+      }
+      case 0xbc: {
+        this.do_cp((ix >>> 8) & 0xff);
+      }
+      case 0xbd: {
+        this.do_cp(ix & 0xff);
+      }
+      case 0xbe: {
+        pc = (pc + 1) & 0xffff;
+        var offset = this.get_signed_offset_byte(this.mem.read(pc));
+        this.do_cp(this.mem.read((ix + offset) & 0xffff));
+      }
+      case 0xcb: {
+        pc = (pc + 1) & 0xffff;
+        var offset = this.get_signed_offset_byte(this.mem.read(pc));
+        pc = (pc + 1) & 0xffff;
+        var opcode = this.mem.read(pc),
+          value;
+        if (opcode < 0x40) {
+          var ddcb_functions = [
+            this.do_rlc,
+            this.do_rrc,
+            this.do_rl,
+            this.do_rr,
+            this.do_sla,
+            this.do_sra,
+            this.do_sll,
+            this.do_srl,
+          ];
+          var func = ddcb_functions[(opcode & 0x38) >>> 3],
+            value = func(this.mem.read((ix + offset) & 0xffff));
+          this.mem.write((ix + offset) & 0xffff, value);
+        } else {
+          var bit_number = (opcode & 0x38) >>> 3;
+          if (opcode < 0x80) {
+            this.flg.N = 0;
+            this.flg.H = 1;
+            this.flg.Z = !(this.mem.read((ix + offset) & 0xffff) & (1 << bit_number)) ? 1 : 0;
+            this.flg.P = this.flg.Z;
+            this.flg.S = bit_number === 7 && !this.flg.Z ? 1 : 0;
+          } else if (opcode < 0xc0) {
+            value = this.mem.read((ix + offset) & 0xffff) & ~(1 << bit_number) & 0xff;
+            this.mem.write((ix + offset) & 0xffff, value);
+          } else {
+            value = this.mem.read((ix + offset) & 0xffff) | (1 << bit_number);
+            this.mem.write((ix + offset) & 0xffff, value);
+          }
+        }
+        if (value !== undefined) {
+          if ((opcode & 0x07) === 0) b = value;
+          else if ((opcode & 0x07) === 1) c = value;
+          else if ((opcode & 0x07) === 2) d = value;
+          else if ((opcode & 0x07) === 3) e = value;
+          else if ((opcode & 0x07) === 4) h = value;
+          else if ((opcode & 0x07) === 5) l = value;
+          else if ((opcode & 0x07) === 7) a = value;
+        }
+        this.cycle_counter += this.cycle_counts_cb[opcode] + 8;
+      }
+      case 0xe1: {
+        ix = this.pop_word();
+      }
+      case 0xe3: {
+        var temp = ix;
+        ix = this.mem.read(sp);
+        ix |= this.mem.read((sp + 1) & 0xffff) << 8;
+        this.mem.write(sp, temp & 0xff);
+        this.mem.write((sp + 1) & 0xffff, (temp >>> 8) & 0xff);
+      }
+      case 0xe5: {
+        this.push_word(ix);
+      }
+      case 0xe9: {
+        pc = (ix - 1) & 0xffff;
+      }
+      case 0xf9: {
+        sp = ix;
+      }
+    }
   };
-  dd_instructions[0xe3] = function () {
-    var temp = ix;
-    ix = this.mem.read(sp);
-    ix |= this.mem.read((sp + 1) & 0xffff) << 8;
-    this.mem.write(sp, temp & 0xff);
-    this.mem.write((sp + 1) & 0xffff, (temp >>> 8) & 0xff);
-  };
-  dd_instructions[0xe5] = function () {
-    this.push_word(ix);
-  };
-  dd_instructions[0xe9] = function () {
-    pc = (ix - 1) & 0xffff;
-  };
-  dd_instructions[0xf9] = function () {
-    sp = ix;
-  };
-  let get_parity = function (value) {
-    var parity_bits = [
-      1,
-      0,
-      0,
-      1,
-      0,
-      1,
-      1,
-      0,
-      0,
-      1,
-      1,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      1,
-      1,
-      0,
-      1,
-      0,
-      0,
-      1,
-      1,
-      0,
-      0,
-      1,
-      0,
-      1,
-      1,
-      0,
-      0,
-      1,
-      1,
-      0,
-      1,
-      0,
-      0,
-      1,
-      1,
-      0,
-      0,
-      1,
-      0,
-      1,
-      1,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      1,
-      1,
-      0,
-      0,
-      1,
-      1,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      1,
-      1,
-      0,
-      1,
-      0,
-      0,
-      1,
-      1,
-      0,
-      0,
-      1,
-      0,
-      1,
-      1,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      1,
-      1,
-      0,
-      0,
-      1,
-      1,
-      0,
-      1,
-      0,
-      0,
-      1,
-      1,
-      0,
-      0,
-      1,
-      0,
-      1,
-      1,
-      0,
-      0,
-      1,
-      1,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      1,
-      1,
-      0,
-      1,
-      0,
-      0,
-      1,
-      1,
-      0,
-      0,
-      1,
-      0,
-      1,
-      1,
-      0,
-      0,
-      1,
-      1,
-      0,
-      1,
-      0,
-      0,
-      1,
-      1,
-      0,
-      0,
-      1,
-      0,
-      1,
-      1,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      1,
-      1,
-      0,
-      0,
-      1,
-      1,
-      0,
-      1,
-      0,
-      0,
-      1,
-      1,
-      0,
-      0,
-      1,
-      0,
-      1,
-      1,
-      0,
-      0,
-      1,
-      1,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      1,
-      1,
-      0,
-      1,
-      0,
-      0,
-      1,
-      1,
-      0,
-      0,
-      1,
-      0,
-      1,
-      1,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      1,
-      1,
-      0,
-      0,
-      1,
-      1,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      1,
-      1,
-      0,
-      1,
-      0,
-      0,
-      1,
-      1,
-      0,
-      0,
-      1,
-      0,
-      1,
-      1,
-      0,
-      0,
-      1,
-      1,
-      0,
-      1,
-      0,
-      0,
-      1,
-      1,
-      0,
-      0,
-      1,
-      0,
-      1,
-      1,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      1,
-      1,
-      0,
-      0,
-      1,
-      1,
-      0,
-      1,
-      0,
-      0,
-      1,
-    ];
-    return parity_bits[value];
-  };
-  let cycle_counts = [
+  this.parity_bits = [
+    1,
+    0,
+    0,
+    1,
+    0,
+    1,
+    1,
+    0,
+    0,
+    1,
+    1,
+    0,
+    1,
+    0,
+    0,
+    1,
+    0,
+    1,
+    1,
+    0,
+    1,
+    0,
+    0,
+    1,
+    1,
+    0,
+    0,
+    1,
+    0,
+    1,
+    1,
+    0,
+    0,
+    1,
+    1,
+    0,
+    1,
+    0,
+    0,
+    1,
+    1,
+    0,
+    0,
+    1,
+    0,
+    1,
+    1,
+    0,
+    1,
+    0,
+    0,
+    1,
+    0,
+    1,
+    1,
+    0,
+    0,
+    1,
+    1,
+    0,
+    1,
+    0,
+    0,
+    1,
+    0,
+    1,
+    1,
+    0,
+    1,
+    0,
+    0,
+    1,
+    1,
+    0,
+    0,
+    1,
+    0,
+    1,
+    1,
+    0,
+    1,
+    0,
+    0,
+    1,
+    0,
+    1,
+    1,
+    0,
+    0,
+    1,
+    1,
+    0,
+    1,
+    0,
+    0,
+    1,
+    1,
+    0,
+    0,
+    1,
+    0,
+    1,
+    1,
+    0,
+    0,
+    1,
+    1,
+    0,
+    1,
+    0,
+    0,
+    1,
+    0,
+    1,
+    1,
+    0,
+    1,
+    0,
+    0,
+    1,
+    1,
+    0,
+    0,
+    1,
+    0,
+    1,
+    1,
+    0,
+    0,
+    1,
+    1,
+    0,
+    1,
+    0,
+    0,
+    1,
+    1,
+    0,
+    0,
+    1,
+    0,
+    1,
+    1,
+    0,
+    1,
+    0,
+    0,
+    1,
+    0,
+    1,
+    1,
+    0,
+    0,
+    1,
+    1,
+    0,
+    1,
+    0,
+    0,
+    1,
+    1,
+    0,
+    0,
+    1,
+    0,
+    1,
+    1,
+    0,
+    0,
+    1,
+    1,
+    0,
+    1,
+    0,
+    0,
+    1,
+    0,
+    1,
+    1,
+    0,
+    1,
+    0,
+    0,
+    1,
+    1,
+    0,
+    0,
+    1,
+    0,
+    1,
+    1,
+    0,
+    1,
+    0,
+    0,
+    1,
+    0,
+    1,
+    1,
+    0,
+    0,
+    1,
+    1,
+    0,
+    1,
+    0,
+    0,
+    1,
+    0,
+    1,
+    1,
+    0,
+    1,
+    0,
+    0,
+    1,
+    1,
+    0,
+    0,
+    1,
+    0,
+    1,
+    1,
+    0,
+    0,
+    1,
+    1,
+    0,
+    1,
+    0,
+    0,
+    1,
+    1,
+    0,
+    0,
+    1,
+    0,
+    1,
+    1,
+    0,
+    1,
+    0,
+    0,
+    1,
+    0,
+    1,
+    1,
+    0,
+    0,
+    1,
+    1,
+    0,
+    1,
+    0,
+    0,
+    1,
+  ];
+  this.cycle_counts = [
     4,
     10,
     7,
@@ -2465,7 +2508,7 @@ function Z80(core,mem) {
     7,
     11,
   ];
-  let cycle_counts_ed = [
+  this.cycle_counts_ed = [
     0,
     0,
     0,
@@ -2723,7 +2766,7 @@ function Z80(core,mem) {
     0,
     0,
   ];
-  let cycle_counts_cb = [
+  this.cycle_counts_cb = [
     8,
     8,
     8,
@@ -2981,7 +3024,7 @@ function Z80(core,mem) {
     15,
     8,
   ];
-  let cycle_counts_dd = [
+  this.cycle_counts_dd = [
     0,
     0,
     0,
