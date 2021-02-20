@@ -3,20 +3,20 @@ class RAM {
     this.core = core;
     this.mem = new Uint8Array(0xffff);
   }
-  read(address) {
-    if(this.core.info.mem)console.log("          read    : "+this.toHex(address))
+  readbyte(address) {
+    if(this.core.info.mem)console.log("          readbyte  : "+this.toHex(address))
     return this.mem[address];
   }
-  read16 = function (address) {
-    if(this.core.info.mem)console.log("          read16  : "+this.toHex(address))
+  readword = function (address) {
+    if(this.core.info.mem)console.log("          readword  : "+this.toHex(address))
     return (this.read(address + 1) << 8) | this.read(address);
   };
-  write(address, data) {
-    if(this.core.info.mem)console.log("          write   : "+this.toHex(address))
+  writebyte(address, data) {
+    if(this.core.info.mem)console.log("          writebyte : "+this.toHex(address))
     this.mem[address] = data & 0xff;
   }
-  write16 = function (address, data) {
-    if(this.core.info.mem)console.log("          write16 : "+this.toHex(address))
+  writeword = function (address, data) {
+    if(this.core.info.mem)console.log("          writeword : "+this.toHex(address))
     this.write(address, data);
     this.write(address + 1, data >> 8);
   };

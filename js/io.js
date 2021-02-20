@@ -2,10 +2,10 @@ class IO {
   constructor(core) {
     this.core = core;
   }
-  read(){
+  readport(){
 
   }
-  write(){
+  writeport(){
 
   }
   reset(hard) {

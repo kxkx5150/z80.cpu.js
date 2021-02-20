@@ -5,7 +5,7 @@ document.getElementById("fileInput").addEventListener("change", (e) => {
   var fileReader = new FileReader();
   fileReader.onload = function () {
     if (!this.result) return;
-    main.setRom(this.result)
+    main.setRom(this.result);
   };
   fileReader.readAsArrayBuffer(file);
 });

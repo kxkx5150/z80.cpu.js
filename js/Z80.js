@@ -62,9 +62,9 @@ function Z80(core, mem) {
         doing_delayed_ei = true;
       }
       r = (r & 0x80) | (((r & 0x7f) + 1) & 0x7f);
-      var opcode = this.mem.read(pc);
+      var opcode = this.mem.readbyte(pc);
+      if (this.core.info.cpu) this.showInfo(pc, opcode);
       this.decode_instruction(opcode);
-      if(this.core.info.cpu)this.showInfo(pc,opcode)
       pc = (pc + 1) & 0xffff;
       if (doing_delayed_di) {
         this.iff1 = 0;
@@ -73,27 +73,27 @@ function Z80(core, mem) {
         this.iff1 = 1;
         this.iff2 = 1;
       }
-      var retval = this.cycle_counter;
-      this.cycle_counter = 0;
-      return retval;
+      this.cycle_counter;
+      // this.cycle_counter = 0;
+      return;
     } else {
       return 1;
     }
   };
-  this.showInfo = (pc,opcode)=>{
-    let rval = this.Instructions(opcode)
+  this.showInfo = (pc, opcode) => {
+    let rval = this.Instructions(opcode);
     console.log("");
     console.log("PC      : " + this.toHex(pc));
-    console.log("OPCODE  : "+rval.opCode);
-    console.log("Z80CODE : "+rval.z80OPCode);
-  }
+    console.log("OPCODE  : " + rval.opCode);
+    console.log("ophex   : " + this.toHex(opcode));
+  };
   this.toHex = (v) => {
-    return '0x' + (('0000' + v.toString(16).toUpperCase()).substr(-4));
-  }
-  this.setPC = (adr) =>{
-    console.log("set PC "+ this.toHex(adr));
+    return "0x" + ("0000" + v.toString(16).toUpperCase()).substr(-4);
+  };
+  this.setPC = (adr) => {
+    console.log("set PC " + this.toHex(adr));
     pc = adr;
-  }
+  };
   this.interrupt = (non_maskable, data) => {
     if (non_maskable) {
       r = (r & 0x80) | (((r & 0x7f) + 1) & 0x7f);
@@ -120,7 +120,7 @@ function Z80(core, mem) {
       } else if (this.imode === 2) {
         this.push_word(pc);
         var vector_address = (i << 8) | data;
-        pc = this.mem.read(vector_address) | (this.mem.read((vector_address + 1) & 0xffff) << 8);
+        pc = this.mem.readbyte(vector_address) | (this.mem.readbyte((vector_address + 1) & 0xffff) << 8);
         this.cycle_counter += 19;
       }
     }
@@ -140,7 +140,7 @@ function Z80(core, mem) {
         : (opcode & 0x07) === 5
         ? l
         : (opcode & 0x07) === 6
-        ? this.mem.read(l | (h << 8))
+        ? this.mem.readbyte(l | (h << 8))
         : a;
     };
     if (opcode === 0x76) {
@@ -153,7 +153,7 @@ function Z80(core, mem) {
       else if ((opcode & 0x38) >>> 3 === 3) e = operand;
       else if ((opcode & 0x38) >>> 3 === 4) h = operand;
       else if ((opcode & 0x38) >>> 3 === 5) l = operand;
-      else if ((opcode & 0x38) >>> 3 === 6) this.mem.write(l | (h << 8), operand);
+      else if ((opcode & 0x38) >>> 3 === 6) this.mem.writebyte(l | (h << 8), operand);
       else if ((opcode & 0x38) >>> 3 === 7) a = operand;
     } else if (opcode >= 0x80 && opcode < 0xc0) {
       var operand = get_operand(opcode),
@@ -173,7 +173,7 @@ function Z80(core, mem) {
     }
     this.cycle_counter += this.cycle_counts[opcode];
   };
-  
+
   this.get_signed_offset_byte = (value) => {
     value &= 0xff;
     if (value & 0x80) {
@@ -231,20 +231,20 @@ function Z80(core, mem) {
   };
   this.push_word = (operand) => {
     sp = (sp - 1) & 0xffff;
-    this.mem.write(sp, (operand & 0xff00) >>> 8);
+    this.mem.writebyte(sp, (operand & 0xff00) >>> 8);
     sp = (sp - 1) & 0xffff;
-    this.mem.write(sp, operand & 0x00ff);
+    this.mem.writebyte(sp, operand & 0x00ff);
   };
   this.pop_word = () => {
-    var retval = this.mem.read(sp) & 0xff;
+    var retval = this.mem.readbyte(sp) & 0xff;
     sp = (sp + 1) & 0xffff;
-    retval |= this.mem.read(sp) << 8;
+    retval |= this.mem.readbyte(sp) << 8;
     sp = (sp + 1) & 0xffff;
     return retval;
   };
   this.do_conditional_absolute_jump = (condition) => {
     if (condition) {
-      pc = this.mem.read((pc + 1) & 0xffff) | (this.mem.read((pc + 2) & 0xffff) << 8);
+      pc = this.mem.readbyte((pc + 1) & 0xffff) | (this.mem.readbyte((pc + 2) & 0xffff) << 8);
       pc = (pc - 1) & 0xffff;
     } else {
       pc = (pc + 2) & 0xffff;
@@ -253,7 +253,7 @@ function Z80(core, mem) {
   this.do_conditional_relative_jump = (condition) => {
     if (condition) {
       this.cycle_counter += 5;
-      var offset = this.get_signed_offset_byte(this.mem.read((pc + 1) & 0xffff));
+      var offset = this.get_signed_offset_byte(this.mem.readbyte((pc + 1) & 0xffff));
       pc = (pc + offset + 1) & 0xffff;
     } else {
       pc = (pc + 1) & 0xffff;
@@ -263,7 +263,7 @@ function Z80(core, mem) {
     if (condition) {
       this.cycle_counter += 7;
       this.push_word((pc + 3) & 0xffff);
-      pc = this.mem.read((pc + 1) & 0xffff) | (this.mem.read((pc + 2) & 0xffff) << 8);
+      pc = this.mem.readbyte((pc + 1) & 0xffff) | (this.mem.readbyte((pc + 2) & 0xffff) << 8);
       pc = (pc - 1) & 0xffff;
     } else {
       pc = (pc + 2) & 0xffff;
@@ -420,7 +420,7 @@ function Z80(core, mem) {
     this.update_xy_flags(h);
   };
   this.do_in = (port) => {
-    var result = this.core.io.read(port);
+    var result = this.core.io.readport(port);
     this.flg.S = result & 0x80 ? 1 : 0;
     this.flg.Z = result ? 0 : 1;
     this.flg.H = 0;
@@ -443,8 +443,8 @@ function Z80(core, mem) {
     this.update_xy_flags(a);
   };
   this.do_ldi = () => {
-    var read_value = this.mem.read(l | (h << 8));
-    this.mem.write(e | (d << 8), read_value);
+    var read_value = this.mem.readbyte(l | (h << 8));
+    this.mem.writebyte(e | (d << 8), read_value);
     var result = (e | (d << 8)) + 1;
     e = result & 0xff;
     d = (result & 0xff00) >>> 8;
@@ -462,7 +462,7 @@ function Z80(core, mem) {
   };
   this.do_cpi = () => {
     var temp_carry = this.flg.C;
-    var read_value = this.mem.read(l | (h << 8));
+    var read_value = this.mem.readbyte(l | (h << 8));
     this.do_cp(read_value);
     this.flg.C = temp_carry;
     this.flg.Y = ((a - read_value - this.flg.H) & 0x02) >>> 1;
@@ -477,14 +477,14 @@ function Z80(core, mem) {
   };
   this.do_ini = () => {
     b = this.do_dec(b);
-    this.mem.write(l | (h << 8), this.core.io.read((b << 8) | c));
+    this.mem.writebyte(l | (h << 8), this.core.io.readport((b << 8) | c));
     var result = (l | (h << 8)) + 1;
     l = result & 0xff;
     h = (result & 0xff00) >>> 8;
     this.flg.N = 1;
   };
   this.do_outi = () => {
-    this.core.io.write((b << 8) | c, this.mem.read(l | (h << 8)));
+    this.core.io.writeport((b << 8) | c, this.mem.readbyte(l | (h << 8)));
     var result = (l | (h << 8)) + 1;
     l = result & 0xff;
     h = (result & 0xff00) >>> 8;
@@ -494,8 +494,8 @@ function Z80(core, mem) {
   this.do_ldd = () => {
     this.flg.N = 0;
     this.flg.H = 0;
-    var read_value = this.mem.read(l | (h << 8));
-    this.mem.write(e | (d << 8), read_value);
+    var read_value = this.mem.readbyte(l | (h << 8));
+    this.mem.writebyte(e | (d << 8), read_value);
     var result = (e | (d << 8)) - 1;
     e = result & 0xff;
     d = (result & 0xff00) >>> 8;
@@ -511,7 +511,7 @@ function Z80(core, mem) {
   };
   this.do_cpd = () => {
     var temp_carry = this.flg.C;
-    var read_value = this.mem.read(l | (h << 8));
+    var read_value = this.mem.readbyte(l | (h << 8));
     this.do_cp(read_value);
     this.flg.C = temp_carry;
     this.flg.Y = ((a - read_value - this.flg.H) & 0x02) >>> 1;
@@ -526,14 +526,14 @@ function Z80(core, mem) {
   };
   this.do_ind = () => {
     b = this.do_dec(b);
-    this.mem.write(l | (h << 8), this.core.io.read((b << 8) | c));
+    this.mem.writebyte(l | (h << 8), this.core.io.readport((b << 8) | c));
     var result = (l | (h << 8)) - 1;
     l = result & 0xff;
     h = (result & 0xff00) >>> 8;
     this.flg.N = 1;
   };
   this.do_outd = () => {
-    this.core.io.write((b << 8) | c, this.mem.read(l | (h << 8)));
+    this.core.io.writeport((b << 8) | c, this.mem.readbyte(l | (h << 8)));
     var result = (l | (h << 8)) - 1;
     l = result & 0xff;
     h = (result & 0xff00) >>> 8;
@@ -638,36 +638,42 @@ function Z80(core, mem) {
     this.update_xy_flags((result & 0xff00) >>> 8);
     ix = result;
   };
-  
 
-  this.execInstruction = (opcode) => {
-    switch (opcode) {
+  this.execInstruction = (_opcode) => {
+    switch (_opcode) {
       case 0x00: {
+        break;
       }
       case 0x01: {
         pc = (pc + 1) & 0xffff;
-        c = this.mem.read(pc);
+        c = this.mem.readbyte(pc);
         pc = (pc + 1) & 0xffff;
-        b = this.mem.read(pc);
+        b = this.mem.readbyte(pc);
+        break;
       }
       case 0x02: {
-        this.mem.write(c | (b << 8), a);
+        this.mem.writebyte(c | (b << 8), a);
+        break;
       }
       case 0x03: {
         var result = c | (b << 8);
         result += 1;
         c = result & 0xff;
         b = (result & 0xff00) >>> 8;
+        break;
       }
       case 0x04: {
         b = this.do_inc(b);
+        break;
       }
       case 0x05: {
         b = this.do_dec(b);
+        break;
       }
       case 0x06: {
         pc = (pc + 1) & 0xffff;
-        b = this.mem.read(pc);
+        b = this.mem.readbyte(pc);
+        break;
       }
       case 0x07: {
         var temp_s = this.flg.S,
@@ -677,6 +683,7 @@ function Z80(core, mem) {
         this.flg.S = temp_s;
         this.flg.Z = temp_z;
         this.flg.P = temp_p;
+        break;
       }
       case 0x08: {
         var temp = a;
@@ -685,28 +692,35 @@ function Z80(core, mem) {
         temp = this.get_flags_register();
         this.set_flags_register(this.get_flags_prime());
         this.set_flags_prime(temp);
+        break;
       }
       case 0x09: {
         this.do_hl_add(c | (b << 8));
+        break;
       }
       case 0x0a: {
-        a = this.mem.read(c | (b << 8));
+        a = this.mem.readbyte(c | (b << 8));
+        break;
       }
       case 0x0b: {
         var result = c | (b << 8);
         result -= 1;
         c = result & 0xff;
         b = (result & 0xff00) >>> 8;
+        break;
       }
       case 0x0c: {
         c = this.do_inc(c);
+        break;
       }
       case 0x0d: {
         c = this.do_dec(c);
+        break;
       }
       case 0x0e: {
         pc = (pc + 1) & 0xffff;
-        c = this.mem.read(pc);
+        c = this.mem.readbyte(pc);
+        break;
       }
       case 0x0f: {
         var temp_s = this.flg.S,
@@ -716,35 +730,43 @@ function Z80(core, mem) {
         this.flg.S = temp_s;
         this.flg.Z = temp_z;
         this.flg.P = temp_p;
+        break;
       }
       case 0x10: {
         b = (b - 1) & 0xff;
         this.do_conditional_relative_jump(b !== 0);
+        break;
       }
       case 0x11: {
         pc = (pc + 1) & 0xffff;
-        e = this.mem.read(pc);
+        e = this.mem.readbyte(pc);
         pc = (pc + 1) & 0xffff;
-        d = this.mem.read(pc);
+        d = this.mem.readbyte(pc);
+        break;
       }
       case 0x12: {
-        this.mem.write(e | (d << 8), a);
+        this.mem.writebyte(e | (d << 8), a);
+        break;
       }
       case 0x13: {
         var result = e | (d << 8);
         result += 1;
         e = result & 0xff;
         d = (result & 0xff00) >>> 8;
+        break;
       }
       case 0x14: {
         d = this.do_inc(d);
+        break;
       }
       case 0x15: {
         d = this.do_dec(d);
+        break;
       }
       case 0x16: {
         pc = (pc + 1) & 0xffff;
-        d = this.mem.read(pc);
+        d = this.mem.readbyte(pc);
+        break;
       }
       case 0x17: {
         var temp_s = this.flg.S,
@@ -754,32 +776,40 @@ function Z80(core, mem) {
         this.flg.S = temp_s;
         this.flg.Z = temp_z;
         this.flg.P = temp_p;
+        break;
       }
       case 0x18: {
-        var offset = this.get_signed_offset_byte(this.mem.read((pc + 1) & 0xffff));
+        var offset = this.get_signed_offset_byte(this.mem.readbyte((pc + 1) & 0xffff));
         pc = (pc + offset + 1) & 0xffff;
+        break;
       }
       case 0x19: {
         this.do_hl_add(e | (d << 8));
+        break;
       }
       case 0x1a: {
-        a = this.mem.read(e | (d << 8));
+        a = this.mem.readbyte(e | (d << 8));
+        break;
       }
       case 0x1b: {
         var result = e | (d << 8);
         result -= 1;
         e = result & 0xff;
         d = (result & 0xff00) >>> 8;
+        break;
       }
       case 0x1c: {
         e = this.do_inc(e);
+        break;
       }
       case 0x1d: {
         e = this.do_dec(e);
+        break;
       }
       case 0x1e: {
         pc = (pc + 1) & 0xffff;
-        e = this.mem.read(pc);
+        e = this.mem.readbyte(pc);
+        break;
       }
       case 0x1f: {
         var temp_s = this.flg.S,
@@ -789,39 +819,47 @@ function Z80(core, mem) {
         this.flg.S = temp_s;
         this.flg.Z = temp_z;
         this.flg.P = temp_p;
+        break;
       }
       case 0x20: {
         this.do_conditional_relative_jump(!this.flg.Z);
+        break;
       }
       case 0x21: {
         pc = (pc + 1) & 0xffff;
-        l = this.mem.read(pc);
+        l = this.mem.readbyte(pc);
         pc = (pc + 1) & 0xffff;
-        h = this.mem.read(pc);
+        h = this.mem.readbyte(pc);
+        break;
       }
       case 0x22: {
         pc = (pc + 1) & 0xffff;
-        var address = this.mem.read(pc);
+        var address = this.mem.readbyte(pc);
         pc = (pc + 1) & 0xffff;
-        address |= this.mem.read(pc) << 8;
-        this.mem.write(address, l);
-        this.mem.write((address + 1) & 0xffff, h);
+        address |= this.mem.readbyte(pc) << 8;
+        this.mem.writebyte(address, l);
+        this.mem.writebyte((address + 1) & 0xffff, h);
+        break;
       }
       case 0x23: {
         var result = l | (h << 8);
         result += 1;
         l = result & 0xff;
         h = (result & 0xff00) >>> 8;
+        break;
       }
       case 0x24: {
         h = this.do_inc(h);
+        break;
       }
       case 0x25: {
         h = this.do_dec(h);
+        break;
       }
       case 0x26: {
         pc = (pc + 1) & 0xffff;
-        h = this.mem.read(pc);
+        h = this.mem.readbyte(pc);
+        break;
       }
       case 0x27: {
         var temp = a;
@@ -839,151 +877,187 @@ function Z80(core, mem) {
         this.flg.C = this.flg.C || a > 0x99 ? 1 : 0;
         a = temp & 0xff;
         this.update_xy_flags(a);
+        break;
       }
       case 0x28: {
         this.do_conditional_relative_jump(!!this.flg.Z);
+        break;
       }
       case 0x29: {
         this.do_hl_add(l | (h << 8));
+        break;
       }
       case 0x2a: {
         pc = (pc + 1) & 0xffff;
-        var address = this.mem.read(pc);
+        var address = this.mem.readbyte(pc);
         pc = (pc + 1) & 0xffff;
-        address |= this.mem.read(pc) << 8;
-        l = this.mem.read(address);
-        h = this.mem.read((address + 1) & 0xffff);
+        address |= this.mem.readbyte(pc) << 8;
+        l = this.mem.readbyte(address);
+        h = this.mem.readbyte((address + 1) & 0xffff);
+        break;
       }
       case 0x2b: {
         var result = l | (h << 8);
         result -= 1;
         l = result & 0xff;
         h = (result & 0xff00) >>> 8;
+        break;
       }
       case 0x2c: {
         l = this.do_inc(l);
+        break;
       }
       case 0x2d: {
         l = this.do_dec(l);
+        break;
       }
       case 0x2e: {
         pc = (pc + 1) & 0xffff;
-        l = this.mem.read(pc);
+        l = this.mem.readbyte(pc);
+        break;
       }
       case 0x2f: {
         a = ~a & 0xff;
         this.flg.N = 1;
         this.flg.H = 1;
         this.update_xy_flags(a);
+        break;
       }
       case 0x30: {
         this.do_conditional_relative_jump(!this.flg.C);
+        break;
       }
       case 0x31: {
-        sp = this.mem.read((pc + 1) & 0xffff) | (this.mem.read((pc + 2) & 0xffff) << 8);
+        sp = this.mem.readbyte((pc + 1) & 0xffff) | (this.mem.readbyte((pc + 2) & 0xffff) << 8);
         pc = (pc + 2) & 0xffff;
+        break;
       }
       case 0x32: {
         pc = (pc + 1) & 0xffff;
-        var address = this.mem.read(pc);
+        var address = this.mem.readbyte(pc);
         pc = (pc + 1) & 0xffff;
-        address |= this.mem.read(pc) << 8;
-        this.mem.write(address, a);
+        address |= this.mem.readbyte(pc) << 8;
+        this.mem.writebyte(address, a);
+        break;
       }
       case 0x33: {
         sp = (sp + 1) & 0xffff;
+        break;
       }
       case 0x34: {
         var address = l | (h << 8);
-        this.mem.write(address, this.do_inc(this.mem.read(address)));
+        this.mem.writebyte(address, this.do_inc(this.mem.readbyte(address)));
+        break;
       }
       case 0x35: {
         var address = l | (h << 8);
-        this.mem.write(address, this.do_dec(this.mem.read(address)));
+        this.mem.writebyte(address, this.do_dec(this.mem.readbyte(address)));
+        break;
       }
       case 0x36: {
         pc = (pc + 1) & 0xffff;
-        this.mem.write(l | (h << 8), this.mem.read(pc));
+        this.mem.writebyte(l | (h << 8), this.mem.readbyte(pc));
+        break;
       }
       case 0x37: {
         this.flg.N = 0;
         this.flg.H = 0;
         this.flg.C = 1;
         this.update_xy_flags(a);
+        break;
       }
       case 0x38: {
         this.do_conditional_relative_jump(!!this.flg.C);
+        break;
       }
       case 0x39: {
         this.do_hl_add(sp);
+        break;
       }
       case 0x3a: {
         pc = (pc + 1) & 0xffff;
-        var address = this.mem.read(pc);
+        var address = this.mem.readbyte(pc);
         pc = (pc + 1) & 0xffff;
-        address |= this.mem.read(pc) << 8;
-        a = this.mem.read(address);
+        address |= this.mem.readbyte(pc) << 8;
+        a = this.mem.readbyte(address);
+        break;
       }
       case 0x3b: {
         sp = (sp - 1) & 0xffff;
+        break;
       }
       case 0x3c: {
         a = this.do_inc(a);
+        break;
       }
       case 0x3d: {
         a = this.do_dec(a);
+        break;
       }
       case 0x3e: {
-        a = this.mem.read((pc + 1) & 0xffff);
+        a = this.mem.readbyte((pc + 1) & 0xffff);
         pc = (pc + 1) & 0xffff;
+        break;
       }
       case 0x3f: {
         this.flg.N = 0;
         this.flg.H = this.flg.C;
         this.flg.C = this.flg.C ? 0 : 1;
         this.update_xy_flags(a);
+        break;
       }
       case 0xc0: {
         this.do_conditional_return(!this.flg.Z);
+        break;
       }
       case 0xc1: {
         var result = this.pop_word();
         c = result & 0xff;
         b = (result & 0xff00) >>> 8;
+        break;
       }
       case 0xc2: {
         this.do_conditional_absolute_jump(!this.flg.Z);
+        break;
       }
       case 0xc3: {
-        pc = this.mem.read((pc + 1) & 0xffff) | (this.mem.read((pc + 2) & 0xffff) << 8);
+        pc = this.mem.readbyte((pc + 1) & 0xffff) | (this.mem.readbyte((pc + 2) & 0xffff) << 8);
         pc = (pc - 1) & 0xffff;
+        break;
       }
       case 0xc4: {
         this.do_conditional_call(!this.flg.Z);
+        break;
       }
       case 0xc5: {
         this.push_word(c | (b << 8));
+        break;
       }
       case 0xc6: {
         pc = (pc + 1) & 0xffff;
-        this.do_add(this.mem.read(pc));
+        this.do_add(this.mem.readbyte(pc));
+        break;
       }
       case 0xc7: {
         this.do_reset(0x00);
+        break;
       }
       case 0xc8: {
         this.do_conditional_return(!!this.flg.Z);
+        break;
       }
       case 0xc9: {
         pc = (this.pop_word() - 1) & 0xffff;
+        break;
       }
       case 0xca: {
         this.do_conditional_absolute_jump(!!this.flg.Z);
+        break;
       }
       case 0xcb: {
         r = (r & 0x80) | (((r & 0x7f) + 1) & 0x7f);
         pc = (pc + 1) & 0xffff;
-        var opcode = this.mem.read(pc),
+        var opcode = this.mem.readbyte(pc),
           bit_number = (opcode & 0x38) >>> 3,
           reg_code = opcode & 0x07;
         if (opcode < 0x40) {
@@ -1004,7 +1078,7 @@ function Z80(core, mem) {
           else if (reg_code === 4) h = op_array[bit_number](h);
           else if (reg_code === 5) l = op_array[bit_number](l);
           else if (reg_code === 6)
-            this.mem.write(l | (h << 8), op_array[bit_number](this.mem.read(l | (h << 8))));
+            this.mem.writebyte(l | (h << 8), op_array[bit_number](this.mem.readbyte(l | (h << 8))));
           else if (reg_code === 7) a = op_array[bit_number](a);
         } else if (opcode < 0x80) {
           if (reg_code === 0) this.flg.Z = !(b & (1 << bit_number)) ? 1 : 0;
@@ -1013,7 +1087,8 @@ function Z80(core, mem) {
           else if (reg_code === 3) this.flg.Z = !(e & (1 << bit_number)) ? 1 : 0;
           else if (reg_code === 4) this.flg.Z = !(h & (1 << bit_number)) ? 1 : 0;
           else if (reg_code === 5) this.flg.Z = !(l & (1 << bit_number)) ? 1 : 0;
-          else if (reg_code === 6) this.flg.Z = !(this.mem.read(l | (h << 8)) & (1 << bit_number)) ? 1 : 0;
+          else if (reg_code === 6)
+            this.flg.Z = !(this.mem.readbyte(l | (h << 8)) & (1 << bit_number)) ? 1 : 0;
           else if (reg_code === 7) this.flg.Z = !(a & (1 << bit_number)) ? 1 : 0;
           this.flg.N = 0;
           this.flg.H = 1;
@@ -1029,7 +1104,7 @@ function Z80(core, mem) {
           else if (reg_code === 4) h &= 0xff & ~(1 << bit_number);
           else if (reg_code === 5) l &= 0xff & ~(1 << bit_number);
           else if (reg_code === 6)
-            this.mem.write(l | (h << 8), this.mem.read(l | (h << 8)) & ~(1 << bit_number));
+            this.mem.writebyte(l | (h << 8), this.mem.readbyte(l | (h << 8)) & ~(1 << bit_number));
           else if (reg_code === 7) a &= 0xff & ~(1 << bit_number);
         } else {
           if (reg_code === 0) b |= 1 << bit_number;
@@ -1039,56 +1114,70 @@ function Z80(core, mem) {
           else if (reg_code === 4) h |= 1 << bit_number;
           else if (reg_code === 5) l |= 1 << bit_number;
           else if (reg_code === 6)
-            this.mem.write(l | (h << 8), this.mem.read(l | (h << 8)) | (1 << bit_number));
+            this.mem.writebyte(l | (h << 8), this.mem.readbyte(l | (h << 8)) | (1 << bit_number));
           else if (reg_code === 7) a |= 1 << bit_number;
         }
         this.cycle_counter += this.cycle_counts_cb[opcode];
+        break;
       }
       case 0xcc: {
         this.do_conditional_call(!!this.flg.Z);
+        break;
       }
       case 0xcd: {
         this.push_word((pc + 3) & 0xffff);
-        pc = this.mem.read((pc + 1) & 0xffff) | (this.mem.read((pc + 2) & 0xffff) << 8);
+        pc = this.mem.readbyte((pc + 1) & 0xffff) | (this.mem.readbyte((pc + 2) & 0xffff) << 8);
         pc = (pc - 1) & 0xffff;
+        break;
       }
       case 0xce: {
         pc = (pc + 1) & 0xffff;
-        this.do_adc(this.mem.read(pc));
+        this.do_adc(this.mem.readbyte(pc));
+        break;
       }
       case 0xcf: {
         this.do_reset(0x08);
+        break;
       }
       case 0xd0: {
         this.do_conditional_return(!this.flg.C);
+        break;
       }
       case 0xd1: {
         var result = this.pop_word();
         e = result & 0xff;
         d = (result & 0xff00) >>> 8;
+        break;
       }
       case 0xd2: {
         this.do_conditional_absolute_jump(!this.flg.C);
+        break;
       }
       case 0xd3: {
         pc = (pc + 1) & 0xffff;
-        this.core.io.write((a << 8) | this.mem.read(pc), a);
+        this.core.io.writeport((a << 8) | this.mem.readbyte(pc), a);
+        break;
       }
       case 0xd4: {
         this.do_conditional_call(!this.flg.C);
+        break;
       }
       case 0xd5: {
         this.push_word(e | (d << 8));
+        break;
       }
       case 0xd6: {
         pc = (pc + 1) & 0xffff;
-        this.do_sub(this.mem.read(pc));
+        this.do_sub(this.mem.readbyte(pc));
+        break;
       }
       case 0xd7: {
         this.do_reset(0x10);
+        break;
       }
       case 0xd8: {
         this.do_conditional_return(!!this.flg.C);
+        break;
       }
       case 0xd9: {
         var temp = b;
@@ -1109,22 +1198,26 @@ function Z80(core, mem) {
         temp = l;
         l = this.l_prime;
         this.l_prime = temp;
+        break;
       }
       case 0xda: {
         this.do_conditional_absolute_jump(!!this.flg.C);
+        break;
       }
       case 0xdb: {
         pc = (pc + 1) & 0xffff;
-        a = this.core.io.read((a << 8) | this.mem.read(pc));
+        a = this.core.io.readport((a << 8) | this.mem.readbyte(pc));
+        break;
       }
       case 0xdc: {
         this.do_conditional_call(!!this.flg.C);
+        break;
       }
       case 0xdd: {
         r = (r & 0x80) | (((r & 0x7f) + 1) & 0x7f);
         pc = (pc + 1) & 0xffff;
-        var opcode = this.mem.read(pc),
-          func = this.execDDInstruction[opcode];
+        var opcode = this.mem.readbyte(pc),
+          func = this.execDDInstruction(opcode);
         if (func) {
           func();
           this.cycle_counter += this.cycle_counts_dd[opcode];
@@ -1132,55 +1225,69 @@ function Z80(core, mem) {
           pc = (pc - 1) & 0xffff;
           this.cycle_counter += this.cycle_counts[0];
         }
+        break;
       }
       case 0xde: {
         pc = (pc + 1) & 0xffff;
-        this.do_sbc(this.mem.read(pc));
+        this.do_sbc(this.mem.readbyte(pc));
+        break;
       }
       case 0xdf: {
         this.do_reset(0x18);
+        break;
       }
       case 0xe0: {
         this.do_conditional_return(!this.flg.P);
+        break;
       }
       case 0xe1: {
         var result = this.pop_word();
         l = result & 0xff;
         h = (result & 0xff00) >>> 8;
+        break;
       }
       case 0xe2: {
         this.do_conditional_absolute_jump(!this.flg.P);
+        break;
       }
       case 0xe3: {
-        var temp = this.mem.read(sp);
-        this.mem.write(sp, l);
+        var temp = this.mem.readbyte(sp);
+        this.mem.writebyte(sp, l);
         l = temp;
-        temp = this.mem.read((sp + 1) & 0xffff);
-        this.mem.write((sp + 1) & 0xffff, h);
+        temp = this.mem.readbyte((sp + 1) & 0xffff);
+        this.mem.writebyte((sp + 1) & 0xffff, h);
         h = temp;
+        break;
       }
       case 0xe4: {
         this.do_conditional_call(!this.flg.P);
+        break;
       }
       case 0xe5: {
         this.push_word(l | (h << 8));
+        break;
       }
       case 0xe6: {
         pc = (pc + 1) & 0xffff;
-        this.do_and(this.mem.read(pc));
+        this.do_and(this.mem.readbyte(pc));
+        break;
       }
       case 0xe7: {
         this.do_reset(0x20);
+        break;
       }
       case 0xe8: {
         this.do_conditional_return(!!this.flg.P);
+        break;
       }
       case 0xe9: {
         pc = l | (h << 8);
         pc = (pc - 1) & 0xffff;
+        break;
       }
       case 0xea: {
         this.do_conditional_absolute_jump(!!this.flg.P);
+        break;
       }
       case 0xeb: {
         var temp = d;
@@ -1189,76 +1296,94 @@ function Z80(core, mem) {
         temp = e;
         e = l;
         l = temp;
+        break;
       }
       case 0xec: {
         this.do_conditional_call(!!this.flg.P);
+        break;
       }
       case 0xed: {
         r = (r & 0x80) | (((r & 0x7f) + 1) & 0x7f);
         pc = (pc + 1) & 0xffff;
-        var opcode = this.mem.read(pc),
-          func = this.execEDInstruction[opcode];
+        var opcode = this.mem.readbyte(pc),
+          func = this.execEDInstruction(opcode);
         if (func) {
           func();
           this.cycle_counter += this.cycle_counts_ed[opcode];
         } else {
           this.cycle_counter += this.cycle_counts[0];
         }
+        break;
       }
       case 0xee: {
         pc = (pc + 1) & 0xffff;
-        this.do_xor(this.mem.read(pc));
+        this.do_xor(this.mem.readbyte(pc));
+        break;
       }
       case 0xef: {
         this.do_reset(0x28);
+        break;
       }
       case 0xf0: {
         this.do_conditional_return(!this.flg.S);
+        break;
       }
       case 0xf1: {
         var result = this.pop_word();
         this.set_flags_register(result & 0xff);
         a = (result & 0xff00) >>> 8;
+        break;
       }
       case 0xf2: {
         this.do_conditional_absolute_jump(!this.flg.S);
+        break;
       }
       case 0xf3: {
         this.do_delayed_di = true;
+        break;
       }
       case 0xf4: {
         this.do_conditional_call(!this.flg.S);
+        break;
       }
       case 0xf5: {
         this.push_word(this.get_flags_register() | (a << 8));
+        break;
       }
       case 0xf6: {
         pc = (pc + 1) & 0xffff;
-        this.do_or(this.mem.read(pc));
+        this.do_or(this.mem.readbyte(pc));
+        break;
       }
       case 0xf7: {
         this.do_reset(0x30);
+        break;
       }
       case 0xf8: {
         this.do_conditional_return(!!this.flg.S);
+        break;
       }
       case 0xf9: {
         sp = l | (h << 8);
+        break;
       }
       case 0xfa: {
         this.do_conditional_absolute_jump(!!this.flg.S);
+        break;
       }
       case 0xfb: {
         this.do_delayed_ei = true;
+        break;
       }
       case 0xfc: {
         this.do_conditional_call(!!this.flg.S);
+        break;
       }
       case 0xfd: {
         r = (r & 0x80) | (((r & 0x7f) + 1) & 0x7f);
         pc = (pc + 1) & 0xffff;
-        var opcode = this.mem.read(pc),
-          func = this.execDDInstruction[opcode];
+        var opcode = this.mem.readbyte(pc),
+          func = this.execDDInstruction(opcode);
         if (func) {
           var temp = ix;
           ix = iy;
@@ -1270,103 +1395,129 @@ function Z80(core, mem) {
           pc = (pc - 1) & 0xffff;
           this.cycle_counter += this.cycle_counts[0];
         }
+        break;
       }
       case 0xfe: {
         pc = (pc + 1) & 0xffff;
-        this.do_cp(this.mem.read(pc));
+        this.do_cp(this.mem.readbyte(pc));
+        break;
       }
       case 0xff: {
         this.do_reset(0x38);
+        break;
       }
     }
   };
-  this.execEDInstruction = (opcode) => {
-    switch (opcode) {
+  this.execEDInstruction = (_opcode) => {
+    switch (_opcode) {
       case 0x40: {
         b = this.do_in((b << 8) | c);
+        break;
       }
       case 0x41: {
-        this.core.io.write((b << 8) | c, b);
+        this.core.io.writeport((b << 8) | c, b);
+        break;
       }
       case 0x42: {
         this.do_hl_sbc(c | (b << 8));
+        break;
       }
       case 0x43: {
         pc = (pc + 1) & 0xffff;
-        var address = this.mem.read(pc);
+        var address = this.mem.readbyte(pc);
         pc = (pc + 1) & 0xffff;
-        address |= this.mem.read(pc) << 8;
-        this.mem.write(address, c);
-        this.mem.write((address + 1) & 0xffff, b);
+        address |= this.mem.readbyte(pc) << 8;
+        this.mem.writebyte(address, c);
+        this.mem.writebyte((address + 1) & 0xffff, b);
+        break;
       }
       case 0x44: {
         this.do_neg();
+        break;
       }
       case 0x45: {
         pc = (this.pop_word() - 1) & 0xffff;
         this.iff1 = this.iff2;
+        break;
       }
       case 0x46: {
         this.imode = 0;
+        break;
       }
       case 0x47: {
         i = a;
+        break;
       }
       case 0x48: {
         c = this.do_in((b << 8) | c);
+        break;
       }
       case 0x49: {
-        this.core.io.write((b << 8) | c, c);
+        this.core.io.writeport((b << 8) | c, c);
+        break;
       }
       case 0x4a: {
         this.do_hl_adc(c | (b << 8));
+        break;
       }
       case 0x4b: {
         pc = (pc + 1) & 0xffff;
-        var address = this.mem.read(pc);
+        var address = this.mem.readbyte(pc);
         pc = (pc + 1) & 0xffff;
-        address |= this.mem.read(pc) << 8;
-        c = this.mem.read(address);
-        b = this.mem.read((address + 1) & 0xffff);
+        address |= this.mem.readbyte(pc) << 8;
+        c = this.mem.readbyte(address);
+        b = this.mem.readbyte((address + 1) & 0xffff);
+        break;
       }
       case 0x4c: {
         this.do_neg();
+        break;
       }
       case 0x4d: {
         pc = (this.pop_word() - 1) & 0xffff;
+        break;
       }
       case 0x4e: {
         this.imode = 0;
+        break;
       }
       case 0x4f: {
         r = a;
+        break;
       }
       case 0x50: {
         d = this.do_in((b << 8) | c);
+        break;
       }
       case 0x51: {
-        this.core.io.write((b << 8) | c, d);
+        this.core.io.writeport((b << 8) | c, d);
+        break;
       }
       case 0x52: {
         this.do_hl_sbc(e | (d << 8));
+        break;
       }
       case 0x53: {
         pc = (pc + 1) & 0xffff;
-        var address = this.mem.read(pc);
+        var address = this.mem.readbyte(pc);
         pc = (pc + 1) & 0xffff;
-        address |= this.mem.read(pc) << 8;
-        this.mem.write(address, e);
-        this.mem.write((address + 1) & 0xffff, d);
+        address |= this.mem.readbyte(pc) << 8;
+        this.mem.writebyte(address, e);
+        this.mem.writebyte((address + 1) & 0xffff, d);
+        break;
       }
       case 0x54: {
         this.do_neg();
+        break;
       }
       case 0x55: {
         pc = (this.pop_word() - 1) & 0xffff;
         this.iff1 = this.iff2;
+        break;
       }
       case 0x56: {
         this.imode = 1;
+        break;
       }
       case 0x57: {
         a = i;
@@ -1376,33 +1527,41 @@ function Z80(core, mem) {
         this.flg.P = this.iff2;
         this.flg.N = 0;
         this.update_xy_flags(a);
+        break;
       }
       case 0x58: {
         e = this.do_in((b << 8) | c);
+        break;
       }
       case 0x59: {
-        this.core.io.write((b << 8) | c, e);
+        this.core.io.writeport((b << 8) | c, e);
+        break;
       }
       case 0x5a: {
         this.do_hl_adc(e | (d << 8));
+        break;
       }
       case 0x5b: {
         pc = (pc + 1) & 0xffff;
-        var address = this.mem.read(pc);
+        var address = this.mem.readbyte(pc);
         pc = (pc + 1) & 0xffff;
-        address |= this.mem.read(pc) << 8;
-        e = this.mem.read(address);
-        d = this.mem.read((address + 1) & 0xffff);
+        address |= this.mem.readbyte(pc) << 8;
+        e = this.mem.readbyte(address);
+        d = this.mem.readbyte((address + 1) & 0xffff);
+        break;
       }
       case 0x5c: {
         this.do_neg();
+        break;
       }
       case 0x5d: {
         pc = (this.pop_word() - 1) & 0xffff;
         this.iff1 = this.iff2;
+        break;
       }
       case 0x5e: {
         this.imode = 2;
+        break;
       }
       case 0x5f: {
         a = r;
@@ -1412,166 +1571,205 @@ function Z80(core, mem) {
         this.flg.P = this.iff2;
         this.flg.N = 0;
         this.update_xy_flags(a);
+        break;
       }
       case 0x60: {
         h = this.do_in((b << 8) | c);
+        break;
       }
       case 0x61: {
-        this.core.io.write((b << 8) | c, h);
+        this.core.io.writeport((b << 8) | c, h);
+        break;
       }
       case 0x62: {
         this.do_hl_sbc(l | (h << 8));
+        break;
       }
       case 0x63: {
         pc = (pc + 1) & 0xffff;
-        var address = this.mem.read(pc);
+        var address = this.mem.readbyte(pc);
         pc = (pc + 1) & 0xffff;
-        address |= this.mem.read(pc) << 8;
-        this.mem.write(address, l);
-        this.mem.write((address + 1) & 0xffff, h);
+        address |= this.mem.readbyte(pc) << 8;
+        this.mem.writebyte(address, l);
+        this.mem.writebyte((address + 1) & 0xffff, h);
+        break;
       }
       case 0x64: {
         this.do_neg();
+        break;
       }
       case 0x65: {
         pc = (this.pop_word() - 1) & 0xffff;
         this.iff1 = this.iff2;
+        break;
       }
       case 0x66: {
         this.imode = 0;
+        break;
       }
       case 0x67: {
-        var hl_value = this.mem.read(l | (h << 8));
+        var hl_value = this.mem.readbyte(l | (h << 8));
         var temp1 = hl_value & 0x0f,
           temp2 = a & 0x0f;
         hl_value = ((hl_value & 0xf0) >>> 4) | (temp2 << 4);
         a = (a & 0xf0) | temp1;
-        this.mem.write(l | (h << 8), hl_value);
+        this.mem.writebyte(l | (h << 8), hl_value);
         this.flg.S = a & 0x80 ? 1 : 0;
         this.flg.Z = a ? 0 : 1;
         this.flg.H = 0;
         this.flg.P = this.parity_bits[a] ? 1 : 0;
         this.flg.N = 0;
         this.update_xy_flags(a);
+        break;
       }
       case 0x68: {
         l = this.do_in((b << 8) | c);
+        break;
       }
       case 0x69: {
-        this.core.io.write((b << 8) | c, l);
+        this.core.io.writeport((b << 8) | c, l);
+        break;
       }
       case 0x6a: {
         this.do_hl_adc(l | (h << 8));
+        break;
       }
       case 0x6b: {
         pc = (pc + 1) & 0xffff;
-        var address = this.mem.read(pc);
+        var address = this.mem.readbyte(pc);
         pc = (pc + 1) & 0xffff;
-        address |= this.mem.read(pc) << 8;
-        l = this.mem.read(address);
-        h = this.mem.read((address + 1) & 0xffff);
+        address |= this.mem.readbyte(pc) << 8;
+        l = this.mem.readbyte(address);
+        h = this.mem.readbyte((address + 1) & 0xffff);
+        break;
       }
       case 0x6c: {
         this.do_neg();
+        break;
       }
       case 0x6d: {
         pc = (this.pop_word() - 1) & 0xffff;
         this.iff1 = this.iff2;
+        break;
       }
       case 0x6e: {
         this.imode = 0;
+        break;
       }
       case 0x6f: {
-        var hl_value = this.mem.read(l | (h << 8));
+        var hl_value = this.mem.readbyte(l | (h << 8));
         var temp1 = hl_value & 0xf0,
           temp2 = a & 0x0f;
         hl_value = ((hl_value & 0x0f) << 4) | temp2;
         a = (a & 0xf0) | (temp1 >>> 4);
-        this.mem.write(l | (h << 8), hl_value);
+        this.mem.writebyte(l | (h << 8), hl_value);
         this.flg.S = a & 0x80 ? 1 : 0;
         this.flg.Z = a ? 0 : 1;
         this.flg.H = 0;
         this.flg.P = this.parity_bits[a] ? 1 : 0;
         this.flg.N = 0;
         this.update_xy_flags(a);
+        break;
       }
       case 0x70: {
         this.do_in((b << 8) | c);
+        break;
       }
       case 0x71: {
-        this.core.io.write((b << 8) | c, 0);
+        this.core.io.writeport((b << 8) | c, 0);
+        break;
       }
       case 0x72: {
         this.do_hl_sbc(sp);
+        break;
       }
       case 0x73: {
         pc = (pc + 1) & 0xffff;
-        var address = this.mem.read(pc);
+        var address = this.mem.readbyte(pc);
         pc = (pc + 1) & 0xffff;
-        address |= this.mem.read(pc) << 8;
-        this.mem.write(address, sp & 0xff);
-        this.mem.write((address + 1) & 0xffff, (sp >>> 8) & 0xff);
+        address |= this.mem.readbyte(pc) << 8;
+        this.mem.writebyte(address, sp & 0xff);
+        this.mem.writebyte((address + 1) & 0xffff, (sp >>> 8) & 0xff);
+        break;
       }
       case 0x74: {
         this.do_neg();
+        break;
       }
       case 0x75: {
         pc = (this.pop_word() - 1) & 0xffff;
         this.iff1 = this.iff2;
+        break;
       }
       case 0x76: {
         this.imode = 1;
+        break;
       }
       case 0x78: {
         a = this.do_in((b << 8) | c);
+        break;
       }
       case 0x79: {
-        this.core.io.write((b << 8) | c, a);
+        this.core.io.writeport((b << 8) | c, a);
+        break;
       }
       case 0x7a: {
         this.do_hl_adc(sp);
+        break;
       }
       case 0x7b: {
         pc = (pc + 1) & 0xffff;
-        var address = this.mem.read(pc);
+        var address = this.mem.readbyte(pc);
         pc = (pc + 1) & 0xffff;
-        address |= this.mem.read(pc) << 8;
-        sp = this.mem.read(address);
-        sp |= this.mem.read((address + 1) & 0xffff) << 8;
+        address |= this.mem.readbyte(pc) << 8;
+        sp = this.mem.readbyte(address);
+        sp |= this.mem.readbyte((address + 1) & 0xffff) << 8;
+        break;
       }
       case 0x7c: {
         this.do_neg();
+        break;
       }
       case 0x7d: {
         pc = (this.pop_word() - 1) & 0xffff;
         this.iff1 = this.iff2;
+        break;
       }
       case 0x7e: {
         this.imode = 2;
+        break;
       }
       case 0xa0: {
         this.do_ldi();
+        break;
       }
       case 0xa1: {
         this.do_cpi();
+        break;
       }
       case 0xa2: {
         this.do_ini();
+        break;
       }
       case 0xa3: {
         this.do_outi();
+        break;
       }
       case 0xa8: {
         this.do_ldd();
+        break;
       }
       case 0xa9: {
         this.do_cpd();
+        break;
       }
       case 0xaa: {
         this.do_ind();
+        break;
       }
       case 0xab: {
         this.do_outd();
+        break;
       }
       case 0xb0: {
         this.do_ldi();
@@ -1579,6 +1777,7 @@ function Z80(core, mem) {
           this.cycle_counter += 5;
           pc = (pc - 2) & 0xffff;
         }
+        break;
       }
       case 0xb1: {
         this.do_cpi();
@@ -1586,6 +1785,7 @@ function Z80(core, mem) {
           this.cycle_counter += 5;
           pc = (pc - 2) & 0xffff;
         }
+        break;
       }
       case 0xb2: {
         this.do_ini();
@@ -1593,6 +1793,7 @@ function Z80(core, mem) {
           this.cycle_counter += 5;
           pc = (pc - 2) & 0xffff;
         }
+        break;
       }
       case 0xb3: {
         this.do_outi();
@@ -1600,6 +1801,7 @@ function Z80(core, mem) {
           this.cycle_counter += 5;
           pc = (pc - 2) & 0xffff;
         }
+        break;
       }
       case 0xb8: {
         this.do_ldd();
@@ -1607,6 +1809,7 @@ function Z80(core, mem) {
           this.cycle_counter += 5;
           pc = (pc - 2) & 0xffff;
         }
+        break;
       }
       case 0xb9: {
         this.do_cpd();
@@ -1614,6 +1817,7 @@ function Z80(core, mem) {
           this.cycle_counter += 5;
           pc = (pc - 2) & 0xffff;
         }
+        break;
       }
       case 0xba: {
         this.do_ind();
@@ -1621,6 +1825,7 @@ function Z80(core, mem) {
           this.cycle_counter += 5;
           pc = (pc - 2) & 0xffff;
         }
+        break;
       }
       case 0xbb: {
         this.do_outd();
@@ -1628,322 +1833,403 @@ function Z80(core, mem) {
           this.cycle_counter += 5;
           pc = (pc - 2) & 0xffff;
         }
+        break;
       }
     }
   };
-  this.execDDInstruction = (opcode) => {
-    switch (opcode) {
+  this.execDDInstruction = (_opcode) => {
+    switch (_opcode) {
       case 0x09: {
         this.do_ix_add(c | (b << 8));
+        break;
       }
       case 0x19: {
         this.do_ix_add(e | (d << 8));
+        break;
       }
       case 0x21: {
         pc = (pc + 1) & 0xffff;
-        ix = this.mem.read(pc);
+        ix = this.mem.readbyte(pc);
         pc = (pc + 1) & 0xffff;
-        ix |= this.mem.read(pc) << 8;
+        ix |= this.mem.readbyte(pc) << 8;
+        break;
       }
       case 0x22: {
         pc = (pc + 1) & 0xffff;
-        var address = this.mem.read(pc);
+        var address = this.mem.readbyte(pc);
         pc = (pc + 1) & 0xffff;
-        address |= this.mem.read(pc) << 8;
-        this.mem.write(address, ix & 0xff);
-        this.mem.write((address + 1) & 0xffff, (ix >>> 8) & 0xff);
+        address |= this.mem.readbyte(pc) << 8;
+        this.mem.writebyte(address, ix & 0xff);
+        this.mem.writebyte((address + 1) & 0xffff, (ix >>> 8) & 0xff);
+        break;
       }
       case 0x23: {
         ix = (ix + 1) & 0xffff;
+        break;
       }
       case 0x24: {
         ix = (this.do_inc(ix >>> 8) << 8) | (ix & 0xff);
+        break;
       }
       case 0x25: {
         ix = (this.do_dec(ix >>> 8) << 8) | (ix & 0xff);
+        break;
       }
       case 0x26: {
         pc = (pc + 1) & 0xffff;
-        ix = (this.mem.read(pc) << 8) | (ix & 0xff);
+        ix = (this.mem.readbyte(pc) << 8) | (ix & 0xff);
+        break;
       }
       case 0x29: {
         this.do_ix_add(ix);
+        break;
       }
       case 0x2a: {
         pc = (pc + 1) & 0xffff;
-        var address = this.mem.read(pc);
+        var address = this.mem.readbyte(pc);
         pc = (pc + 1) & 0xffff;
-        address |= this.mem.read(pc) << 8;
-        ix = this.mem.read(address);
-        ix |= this.mem.read((address + 1) & 0xffff) << 8;
+        address |= this.mem.readbyte(pc) << 8;
+        ix = this.mem.readbyte(address);
+        ix |= this.mem.readbyte((address + 1) & 0xffff) << 8;
+        break;
       }
       case 0x2b: {
         ix = (ix - 1) & 0xffff;
+        break;
       }
       case 0x2c: {
         ix = this.do_inc(ix & 0xff) | (ix & 0xff00);
+        break;
       }
       case 0x2d: {
         ix = this.do_dec(ix & 0xff) | (ix & 0xff00);
+        break;
       }
       case 0x2e: {
         pc = (pc + 1) & 0xffff;
-        ix = (this.mem.read(pc) & 0xff) | (ix & 0xff00);
+        ix = (this.mem.readbyte(pc) & 0xff) | (ix & 0xff00);
+        break;
       }
       case 0x34: {
         pc = (pc + 1) & 0xffff;
-        var offset = this.get_signed_offset_byte(this.mem.read(pc)),
-          value = this.mem.read((offset + ix) & 0xffff);
-        this.mem.write((offset + ix) & 0xffff, this.do_inc(value));
+        var offset = this.get_signed_offset_byte(this.mem.readbyte(pc)),
+          value = this.mem.readbyte((offset + ix) & 0xffff);
+        this.mem.writebyte((offset + ix) & 0xffff, this.do_inc(value));
+        break;
       }
       case 0x35: {
         pc = (pc + 1) & 0xffff;
-        var offset = this.get_signed_offset_byte(this.mem.read(pc)),
-          value = this.mem.read((offset + ix) & 0xffff);
-        this.mem.write((offset + ix) & 0xffff, this.do_dec(value));
+        var offset = this.get_signed_offset_byte(this.mem.readbyte(pc)),
+          value = this.mem.readbyte((offset + ix) & 0xffff);
+        this.mem.writebyte((offset + ix) & 0xffff, this.do_dec(value));
+        break;
       }
       case 0x36: {
         pc = (pc + 1) & 0xffff;
-        var offset = this.get_signed_offset_byte(this.mem.read(pc));
+        var offset = this.get_signed_offset_byte(this.mem.readbyte(pc));
         pc = (pc + 1) & 0xffff;
-        this.mem.write((ix + offset) & 0xffff, this.mem.read(pc));
+        this.mem.writebyte((ix + offset) & 0xffff, this.mem.readbyte(pc));
+        break;
       }
       case 0x39: {
         this.do_ix_add(sp);
+        break;
       }
       case 0x44: {
         b = (ix >>> 8) & 0xff;
+        break;
       }
       case 0x45: {
         b = ix & 0xff;
+        break;
       }
       case 0x46: {
         pc = (pc + 1) & 0xffff;
-        var offset = this.get_signed_offset_byte(this.mem.read(pc));
-        b = this.mem.read((ix + offset) & 0xffff);
+        var offset = this.get_signed_offset_byte(this.mem.readbyte(pc));
+        b = this.mem.readbyte((ix + offset) & 0xffff);
+        break;
       }
       case 0x4c: {
         c = (ix >>> 8) & 0xff;
+        break;
       }
       case 0x4d: {
         c = ix & 0xff;
+        break;
       }
       case 0x4e: {
         pc = (pc + 1) & 0xffff;
-        var offset = this.get_signed_offset_byte(this.mem.read(pc));
-        c = this.mem.read((ix + offset) & 0xffff);
+        var offset = this.get_signed_offset_byte(this.mem.readbyte(pc));
+        c = this.mem.readbyte((ix + offset) & 0xffff);
+        break;
       }
       case 0x54: {
         d = (ix >>> 8) & 0xff;
+        break;
       }
       case 0x55: {
         d = ix & 0xff;
+        break;
       }
       case 0x56: {
         pc = (pc + 1) & 0xffff;
-        var offset = this.get_signed_offset_byte(this.mem.read(pc));
-        d = this.mem.read((ix + offset) & 0xffff);
+        var offset = this.get_signed_offset_byte(this.mem.readbyte(pc));
+        d = this.mem.readbyte((ix + offset) & 0xffff);
+        break;
       }
       case 0x5c: {
         e = (ix >>> 8) & 0xff;
+        break;
       }
       case 0x5d: {
         e = ix & 0xff;
+        break;
       }
       case 0x5e: {
         pc = (pc + 1) & 0xffff;
-        var offset = this.get_signed_offset_byte(this.mem.read(pc));
-        e = this.mem.read((ix + offset) & 0xffff);
+        var offset = this.get_signed_offset_byte(this.mem.readbyte(pc));
+        e = this.mem.readbyte((ix + offset) & 0xffff);
+        break;
       }
       case 0x60: {
         ix = (ix & 0xff) | (b << 8);
+        break;
       }
       case 0x61: {
         ix = (ix & 0xff) | (c << 8);
+        break;
       }
       case 0x62: {
         ix = (ix & 0xff) | (d << 8);
+        break;
       }
       case 0x63: {
         ix = (ix & 0xff) | (e << 8);
+        break;
       }
       case 0x64: {
+        break;
       }
       case 0x65: {
         ix = (ix & 0xff) | ((ix & 0xff) << 8);
+        break;
       }
       case 0x66: {
         pc = (pc + 1) & 0xffff;
-        var offset = this.get_signed_offset_byte(this.mem.read(pc));
-        h = this.mem.read((ix + offset) & 0xffff);
+        var offset = this.get_signed_offset_byte(this.mem.readbyte(pc));
+        h = this.mem.readbyte((ix + offset) & 0xffff);
+        break;
       }
       case 0x67: {
         ix = (ix & 0xff) | (a << 8);
+        break;
       }
       case 0x68: {
         ix = (ix & 0xff00) | b;
+        break;
       }
       case 0x69: {
         ix = (ix & 0xff00) | c;
+        break;
       }
       case 0x6a: {
         ix = (ix & 0xff00) | d;
+        break;
       }
       case 0x6b: {
         ix = (ix & 0xff00) | e;
+        break;
       }
       case 0x6c: {
         ix = (ix & 0xff00) | (ix >>> 8);
+        break;
       }
       case 0x6d: {
+        break;
       }
       case 0x6e: {
         pc = (pc + 1) & 0xffff;
-        var offset = this.get_signed_offset_byte(this.mem.read(pc));
-        l = this.mem.read((ix + offset) & 0xffff);
+        var offset = this.get_signed_offset_byte(this.mem.readbyte(pc));
+        l = this.mem.readbyte((ix + offset) & 0xffff);
+        break;
       }
       case 0x6f: {
         ix = (ix & 0xff00) | a;
+        break;
       }
       case 0x70: {
         pc = (pc + 1) & 0xffff;
-        var offset = this.get_signed_offset_byte(this.mem.read(pc));
-        this.mem.write((ix + offset) & 0xffff, b);
+        var offset = this.get_signed_offset_byte(this.mem.readbyte(pc));
+        this.mem.writebyte((ix + offset) & 0xffff, b);
+        break;
       }
       case 0x71: {
         pc = (pc + 1) & 0xffff;
-        var offset = this.get_signed_offset_byte(this.mem.read(pc));
-        this.mem.write((ix + offset) & 0xffff, c);
+        var offset = this.get_signed_offset_byte(this.mem.readbyte(pc));
+        this.mem.writebyte((ix + offset) & 0xffff, c);
+        break;
       }
       case 0x72: {
         pc = (pc + 1) & 0xffff;
-        var offset = this.get_signed_offset_byte(this.mem.read(pc));
-        this.mem.write((ix + offset) & 0xffff, d);
+        var offset = this.get_signed_offset_byte(this.mem.readbyte(pc));
+        this.mem.writebyte((ix + offset) & 0xffff, d);
+        break;
       }
       case 0x73: {
         pc = (pc + 1) & 0xffff;
-        var offset = this.get_signed_offset_byte(this.mem.read(pc));
-        this.mem.write((ix + offset) & 0xffff, e);
+        var offset = this.get_signed_offset_byte(this.mem.readbyte(pc));
+        this.mem.writebyte((ix + offset) & 0xffff, e);
+        break;
       }
       case 0x74: {
         pc = (pc + 1) & 0xffff;
-        var offset = this.get_signed_offset_byte(this.mem.read(pc));
-        this.mem.write((ix + offset) & 0xffff, h);
+        var offset = this.get_signed_offset_byte(this.mem.readbyte(pc));
+        this.mem.writebyte((ix + offset) & 0xffff, h);
+        break;
       }
       case 0x75: {
         pc = (pc + 1) & 0xffff;
-        var offset = this.get_signed_offset_byte(this.mem.read(pc));
-        this.mem.write((ix + offset) & 0xffff, l);
+        var offset = this.get_signed_offset_byte(this.mem.readbyte(pc));
+        this.mem.writebyte((ix + offset) & 0xffff, l);
+        break;
       }
       case 0x77: {
         pc = (pc + 1) & 0xffff;
-        var offset = this.get_signed_offset_byte(this.mem.read(pc));
-        this.mem.write((ix + offset) & 0xffff, a);
+        var offset = this.get_signed_offset_byte(this.mem.readbyte(pc));
+        this.mem.writebyte((ix + offset) & 0xffff, a);
+        break;
       }
       case 0x7c: {
         a = (ix >>> 8) & 0xff;
+        break;
       }
       case 0x7d: {
         a = ix & 0xff;
+        break;
       }
       case 0x7e: {
         pc = (pc + 1) & 0xffff;
-        var offset = this.get_signed_offset_byte(this.mem.read(pc));
-        a = this.mem.read((ix + offset) & 0xffff);
+        var offset = this.get_signed_offset_byte(this.mem.readbyte(pc));
+        a = this.mem.readbyte((ix + offset) & 0xffff);
+        break;
       }
       case 0x84: {
         this.do_add((ix >>> 8) & 0xff);
+        break;
       }
       case 0x85: {
         this.do_add(ix & 0xff);
+        break;
       }
       case 0x86: {
         pc = (pc + 1) & 0xffff;
-        var offset = this.get_signed_offset_byte(this.mem.read(pc));
-        this.do_add(this.mem.read((ix + offset) & 0xffff));
+        var offset = this.get_signed_offset_byte(this.mem.readbyte(pc));
+        this.do_add(this.mem.readbyte((ix + offset) & 0xffff));
+        break;
       }
       case 0x8c: {
         this.do_adc((ix >>> 8) & 0xff);
+        break;
       }
       case 0x8d: {
         this.do_adc(ix & 0xff);
+        break;
       }
       case 0x8e: {
         pc = (pc + 1) & 0xffff;
-        var offset = this.get_signed_offset_byte(this.mem.read(pc));
-        this.do_adc(this.mem.read((ix + offset) & 0xffff));
+        var offset = this.get_signed_offset_byte(this.mem.readbyte(pc));
+        this.do_adc(this.mem.readbyte((ix + offset) & 0xffff));
+        break;
       }
       case 0x94: {
         this.do_sub((ix >>> 8) & 0xff);
+        break;
       }
       case 0x95: {
         this.do_sub(ix & 0xff);
+        break;
       }
       case 0x96: {
         pc = (pc + 1) & 0xffff;
-        var offset = this.get_signed_offset_byte(this.mem.read(pc));
-        this.do_sub(this.mem.read((ix + offset) & 0xffff));
+        var offset = this.get_signed_offset_byte(this.mem.readbyte(pc));
+        this.do_sub(this.mem.readbyte((ix + offset) & 0xffff));
+        break;
       }
       case 0x9c: {
         this.do_sbc((ix >>> 8) & 0xff);
+        break;
       }
       case 0x9d: {
         this.do_sbc(ix & 0xff);
+        break;
       }
       case 0x9e: {
         pc = (pc + 1) & 0xffff;
-        var offset = this.get_signed_offset_byte(this.mem.read(pc));
-        this.do_sbc(this.mem.read((ix + offset) & 0xffff));
+        var offset = this.get_signed_offset_byte(this.mem.readbyte(pc));
+        this.do_sbc(this.mem.readbyte((ix + offset) & 0xffff));
+        break;
       }
       case 0xa4: {
         this.do_and((ix >>> 8) & 0xff);
+        break;
       }
       case 0xa5: {
         this.do_and(ix & 0xff);
+        break;
       }
       case 0xa6: {
         pc = (pc + 1) & 0xffff;
-        var offset = this.get_signed_offset_byte(this.mem.read(pc));
-        this.do_and(this.mem.read((ix + offset) & 0xffff));
+        var offset = this.get_signed_offset_byte(this.mem.readbyte(pc));
+        this.do_and(this.mem.readbyte((ix + offset) & 0xffff));
+        break;
       }
       case 0xac: {
         this.do_xor((ix >>> 8) & 0xff);
+        break;
       }
       case 0xad: {
         this.do_xor(ix & 0xff);
+        break;
       }
       case 0xae: {
         pc = (pc + 1) & 0xffff;
-        var offset = this.get_signed_offset_byte(this.mem.read(pc));
-        this.do_xor(this.mem.read((ix + offset) & 0xffff));
+        var offset = this.get_signed_offset_byte(this.mem.readbyte(pc));
+        this.do_xor(this.mem.readbyte((ix + offset) & 0xffff));
+        break;
       }
       case 0xb4: {
         this.do_or((ix >>> 8) & 0xff);
+        break;
       }
       case 0xb5: {
         this.do_or(ix & 0xff);
+        break;
       }
       case 0xb6: {
         pc = (pc + 1) & 0xffff;
-        var offset = this.get_signed_offset_byte(this.mem.read(pc));
-        this.do_or(this.mem.read((ix + offset) & 0xffff));
+        var offset = this.get_signed_offset_byte(this.mem.readbyte(pc));
+        this.do_or(this.mem.readbyte((ix + offset) & 0xffff));
+        break;
       }
       case 0xbc: {
         this.do_cp((ix >>> 8) & 0xff);
+        break;
       }
       case 0xbd: {
         this.do_cp(ix & 0xff);
+        break;
       }
       case 0xbe: {
         pc = (pc + 1) & 0xffff;
-        var offset = this.get_signed_offset_byte(this.mem.read(pc));
-        this.do_cp(this.mem.read((ix + offset) & 0xffff));
+        var offset = this.get_signed_offset_byte(this.mem.readbyte(pc));
+        this.do_cp(this.mem.readbyte((ix + offset) & 0xffff));
+        break;
       }
       case 0xcb: {
         pc = (pc + 1) & 0xffff;
-        var offset = this.get_signed_offset_byte(this.mem.read(pc));
+        var offset = this.get_signed_offset_byte(this.mem.readbyte(pc));
         pc = (pc + 1) & 0xffff;
-        var opcode = this.mem.read(pc),
+        var opcode = this.mem.readbyte(pc),
           value;
         if (opcode < 0x40) {
           var ddcb_functions = [
@@ -1957,22 +2243,22 @@ function Z80(core, mem) {
             this.do_srl,
           ];
           var func = ddcb_functions[(opcode & 0x38) >>> 3],
-            value = func(this.mem.read((ix + offset) & 0xffff));
-          this.mem.write((ix + offset) & 0xffff, value);
+            value = func(this.mem.readbyte((ix + offset) & 0xffff));
+          this.mem.writebyte((ix + offset) & 0xffff, value);
         } else {
           var bit_number = (opcode & 0x38) >>> 3;
           if (opcode < 0x80) {
             this.flg.N = 0;
             this.flg.H = 1;
-            this.flg.Z = !(this.mem.read((ix + offset) & 0xffff) & (1 << bit_number)) ? 1 : 0;
+            this.flg.Z = !(this.mem.readbyte((ix + offset) & 0xffff) & (1 << bit_number)) ? 1 : 0;
             this.flg.P = this.flg.Z;
             this.flg.S = bit_number === 7 && !this.flg.Z ? 1 : 0;
           } else if (opcode < 0xc0) {
-            value = this.mem.read((ix + offset) & 0xffff) & ~(1 << bit_number) & 0xff;
-            this.mem.write((ix + offset) & 0xffff, value);
+            value = this.mem.readbyte((ix + offset) & 0xffff) & ~(1 << bit_number) & 0xff;
+            this.mem.writebyte((ix + offset) & 0xffff, value);
           } else {
-            value = this.mem.read((ix + offset) & 0xffff) | (1 << bit_number);
-            this.mem.write((ix + offset) & 0xffff, value);
+            value = this.mem.readbyte((ix + offset) & 0xffff) | (1 << bit_number);
+            this.mem.writebyte((ix + offset) & 0xffff, value);
           }
         }
         if (value !== undefined) {
@@ -1985,31 +2271,37 @@ function Z80(core, mem) {
           else if ((opcode & 0x07) === 7) a = value;
         }
         this.cycle_counter += this.cycle_counts_cb[opcode] + 8;
+        break;
       }
       case 0xe1: {
         ix = this.pop_word();
+        break;
       }
       case 0xe3: {
         var temp = ix;
-        ix = this.mem.read(sp);
-        ix |= this.mem.read((sp + 1) & 0xffff) << 8;
-        this.mem.write(sp, temp & 0xff);
-        this.mem.write((sp + 1) & 0xffff, (temp >>> 8) & 0xff);
+        ix = this.mem.readbyte(sp);
+        ix |= this.mem.readbyte((sp + 1) & 0xffff) << 8;
+        this.mem.writebyte(sp, temp & 0xff);
+        this.mem.writebyte((sp + 1) & 0xffff, (temp >>> 8) & 0xff);
+        break;
       }
       case 0xe5: {
         this.push_word(ix);
+        break;
       }
       case 0xe9: {
         pc = (ix - 1) & 0xffff;
+        break;
       }
       case 0xf9: {
         sp = ix;
+        break;
       }
     }
   };
   this.Instructions = (opecode) => {
     const output = {
-      opecode:opecode
+      opecode: opecode,
     };
     switch (opecode) {
       case 0x00:
