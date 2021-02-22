@@ -1,3 +1,4 @@
+'use strict';
 function Z80(core, mem) {
   this.core = core;
   this.mem = mem;
