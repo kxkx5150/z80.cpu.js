@@ -174,7 +174,6 @@ function Z80(core, mem) {
     }
     this.cycle_counter += this.cycle_counts[opcode];
   };
-
   this.get_signed_offset_byte = (value) => {
     value &= 0xff;
     if (value & 0x80) {
@@ -639,7 +638,6 @@ function Z80(core, mem) {
     this.update_xy_flags((result & 0xff00) >>> 8);
     ix = result;
   };
-
   this.execInstruction = (_opcode) => {
     switch (_opcode) {
       case 0x00: {
